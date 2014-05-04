@@ -31,6 +31,8 @@ Entity handling.
 
 
 from cuwo.entity import FLAGS_1_HOSTILE
+
+
 from cuwo.packet import EntityUpdate
 
 
@@ -171,7 +173,7 @@ class EntityManager:
             sender.data.max_hp_multiplier = sender._max_hp_multiplier
         
         entity_update = self.__entity_update_packet
-        mask = sender.data.mask# | MASK_HOSTILITY_SETTING
+        mask = sender.data.mask
         entity_update.set_entity(sender.data,
             sender.id, mask)
         
