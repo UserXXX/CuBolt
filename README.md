@@ -25,7 +25,7 @@ In order to achieve the best possible performance, CuBold injects some code into
   <li>Edit cuwo's base.py (it's inside the config directory). You need to adapt the scripts entry to this form:<br>
 scripts = ['log', 'cw', # other scripts following<br>
 ]
-```</li>
+</li>
   <li>Launch the server, it should say something like<br>
 [CB] Initializing CuBolt...<br>
 [CB] Done (Xs).
