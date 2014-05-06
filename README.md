@@ -23,15 +23,13 @@ In order to achieve the best possible performance, CuBold injects some code into
   <li>Download the source of CuBolt, you should get a folder named "cubolt"</li>
   <li>Place the "cubold" folder inside the scripts directory of cuwo.</li>
   <li>Edit cuwo's base.py (it's inside the config directory). You need to adapt the scripts entry to this form:<br>
-```python
-scripts = ['log', 'cw', # other scripts following
+scripts = ['log', 'cw', # other scripts following<br>
 ]
 ```</li>
-  <li>Launch the server, it should say something like
-```
-[CB] Initializing CuBolt...
+  <li>Launch the server, it should say something like<br>
+[CB] Initializing CuBolt...<br>
 [CB] Done (Xs).
-```</li>
+</li>
 </ol>
 
 ### Usage
