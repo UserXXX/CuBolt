@@ -34,6 +34,11 @@ from cuwo.entity import FLAGS_1_HOSTILE
 
 
 from cuwo.packet import EntityUpdate
+from cuwo.packet import HitPacket
+from cuwo.packet import HIT_NORMAL
+
+
+from cuwo.vector import Vector3
 
 
 from constants import MASK_HOSTILITY
@@ -61,6 +66,30 @@ class Entity:
         self._max_hp_multiplier = self.data.max_hp_multiplier
         self.__manager = manager
         self.__manager._register_entity(self)
+        
+    def damage(self, damage, stun_duration=0):
+        packet = HitPacket()
+        packet.entity_id = self.id
+        packet.target_id = self.id
+        packet.hit_type = HIT_NORMAL
+        packet.damage = damage
+        packet.critical = 1
+        packet.stun_duration = stun_duration
+        packet.something8 = 0
+        packet.pos = self.data.position
+        packet.hit_dir = Vector3()
+        packet.skill_hit = 0
+        packet.show_light = 0
+        self.__manager.server.update_packet.player_hits.append(packet)
+        
+    def heal(self, amount):
+        self.damage(-amount)
+        
+    def kill(self):
+        self.damage(self.data.hp + 100.0)
+        
+    def stun(self, duration):
+        self.damage(0, duration)
         
     def set_hostility_to(self, entity, hostile, hostility):
         self.__manager.set_hostility(self, entity, hostile, hostility)
