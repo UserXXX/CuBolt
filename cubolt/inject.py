@@ -56,7 +56,7 @@ class Injector:
         # The client doesn't allow friendly display and hostile
         # behaviour, so have a little workaround...
         em = s.entity_manager
-        for entity in s.entity_list:
+        for id, entity in s.entity_list.iteritems():
             em._update_hostility(entity)
             entity.data.mask = 0 
         s.broadcast_packet(self.update_finished_packet)

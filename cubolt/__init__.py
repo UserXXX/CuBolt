@@ -51,13 +51,13 @@ class CWConnectionScript(ConnectionScript):
         
     def on_unload(self):
         self.entity.on_unload()
-        self.server.entity_list.remove(self.entity)
+        del self.server.entity_list[self.entity.id]
         
     def on_join(self, event):
         con = self.connection
         em = self.server.entity_manager
         self.entity.init(con.entity_id, con.entity_data, em)
-        self.server.entity_list.append(self.entity)
+        self.server.entity_list[self.entity.id] = self.entity
     
     def on_entity_update(self, event):
         self.entity.on_entity_update(event)
@@ -74,7 +74,7 @@ class CWServerScript(ServerScript):
         
         ServerScript.__init__(self, server)
         
-        server.entity_list = []
+        server.entity_list = {}
         server.entity_manager = EntityManager(server)
         
         self.injector = Injector()

@@ -76,7 +76,7 @@ class Entity:
         packet.critical = 1
         packet.stun_duration = stun_duration
         packet.something8 = 0
-        packet.pos = self.data.position
+        packet.pos = self.data.pos
         packet.hit_dir = Vector3()
         packet.skill_hit = 0
         packet.show_light = 0
@@ -100,7 +100,7 @@ class Entity:
             
     def set_hostility_to_all(self, hostile, hostility):
         server = self.__manager.server
-        for entity in server.entity_list:
+        for id, entity in server.entity_list.iteritems():
             self.set_hostility_to(entity, hostile, hostility)
     
     def on_unload(self):
@@ -147,11 +147,11 @@ class EntityManager:
             setting = self.__hostilities[entity_set]
             setting.hostile = hostile
             setting.hostility = hostility
-        for entity in self.server.entity_list:
+        for id, entity in self.server.entity_list.iteritems():
             entity.data.mask |= MASK_HOSTILITY_SETTING
 
     def _register_entity(self, entity):
-        for e in self.server.entity_list:
+        for id, e in self.server.entity_list.iteritems():
             accessor = self.__Set(e.id, entity.id)
             setting = self.__HostilitySetting(self.default_hostile,
                 self.default_hostility)
@@ -162,13 +162,13 @@ class EntityManager:
         entity.data.hostile_type = self.default_hostility
         
     def _unregister_entity(self, entity):
-        for e in self.server.entity_list:
+        for id, e in self.server.entity_list.iteritems():
             if e.id != entity.id:
                 del self.__hostilities[self.__Set(e.id, entity.id)]
             
                 
     def _update_hostility(self, entity): # Called from server in update routine.
-        for e in self.server.entity_list:
+        for id, e in self.server.entity_list.iteritems():
             if e.id == entity.id:
                 setting = self.__HostilitySetting(False,
                     ENTITY_HOSTILITY_FRIENDLY_PLAYER)
@@ -180,7 +180,7 @@ class EntityManager:
         self.__clean_up_entity_data(entity)
         
     def _update_others(self, entity):
-        for e in self.server.entity_list:
+        for id, e in self.server.entity_list.iteritems():
             if e.id != entity.id:
                 self.__update_single_hostility(entity, e,
                     self.__hostilities[self.__Set(e.id, entity.id)])
