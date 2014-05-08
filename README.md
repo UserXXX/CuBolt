@@ -19,7 +19,7 @@ In order to achieve the best possible performance, CuBold injects some code into
 ### Installation
 
 <ol>
-  <li>You need [cuwo](http://cuwo.org/#about) to use CuBolt.</li>
+  <li>You need cuwo(http://cuwo.org/#about) to use CuBolt.</li>
   <li>Download the source of CuBolt, you should get a folder named "cubolt"</li>
   <li>Place the "cubold" folder inside the scripts directory of cuwo.</li>
   <li>Edit cuwo's base.py (it's inside the config directory). You need to adapt the scripts entry to this form:<br>
