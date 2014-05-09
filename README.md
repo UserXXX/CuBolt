@@ -33,4 +33,6 @@ scripts = ['log', 'cubold', # other scripts following<br>
 </ol>
 
 ### Usage
-(coming soon)
+
+CuBold represents an programming interface that makes some things much easier. All you need can be found on this picture:
+![CuBold UML diagram](https://dl.dropboxusercontent.com/u/79973663/CuBolt/CuBolt%20API.png "CuBold UML diagram")
