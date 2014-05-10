@@ -37,8 +37,11 @@ from cuwo.packet import UpdateFinished
 from twisted.internet.task import LoopingCall
 
 
-from particle import ParticleEffect
-
+try:
+    from particle import ParticleEffect
+    has_particles = True
+except:
+    has_particles = False
 
 class Injector:
     def __init__(self, server):
@@ -94,8 +97,9 @@ class Injector:
         s.broadcast_packet(self.time_packet)
     
     def inject_particle_factory(self):
-        s = self.server
-        s.create_particle_effect = self.create_particle_effect
+        if has_particles:
+            s = self.server
+            s.create_particle_effect = self.create_particle_effect
     
     def create_particle_effect(self):
         return ParticleEffect(self.server)

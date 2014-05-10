@@ -16,6 +16,8 @@ Currently CuBolt has the following features:
 Be aware:
 In order to achieve the best possible performance, CuBold injects some code into cuwo. Currently only the update routine is replaced, this should not break other plugins but it may as unusual things happen sometimes.
 
+If you run cuwo from Windows binaries make sure and get errors out of a script, make sure it doesn't use the ParticleEffect class, as it doesn't work with the current Windows binaries.
+
 ### Installation
 
 <ol>
