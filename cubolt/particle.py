@@ -1,0 +1,82 @@
+# The MIT License (MIT)
+#
+# Copyright (c) 2014 Bjoern Lange
+#
+# Permission is hereby granted, free of charge, to any person
+# obtaining a copy of this software and associated documentation
+# files (the "Software"), to deal in the Software without restriction,
+# including without limitation the rights to use, copy, modify, merge,
+# publish, distribute, sublicense, and/or sell copies of the Software,
+# and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+# OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
+# BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+# ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+# CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+#
+# This file is part of CuBolt.
+
+
+"""
+Particle effects.
+"""
+
+
+import time
+
+
+from constants import PARTICLES_SOLID
+
+
+from util import Color
+
+
+class ParticleEffect:
+    def __init__(self, server):
+        self.server = server
+        self.interval = None
+        self.__counter = time.time()
+        
+        self.data = ParticleData()
+        self.data.pos = Vector3(0.0, 0.0, 0.0)
+        self.data.accel = Vector3(0.0, 0.0, 0.0)
+        self.data.color_red = 1.0
+        self.data.color_blue = 1.0
+        self.data.color_green = 1.0
+        self.data.color_alpha = 1.0
+        self.data.scale = 1.0
+        self.data.count = 100
+        self.data.particle_type = PARTICLES_SOLID
+        self.data.spreading = 1.0
+        self.data.something18 = 0
+    
+    def update(self):
+        if interval is not None:
+            difference = time.time() - self.__counter
+            if difference > self.interval:
+                self.__counter = difference - self.interval
+                self.fire()
+                
+    def fire(self):
+        self.server.update_packet.particles.append(self.data)
+       
+    @property
+    def color(self):
+        d = self.data
+        return Color(d.red, d.green, d.blue, d.alpha)
+        
+    @color.setter
+    def color(self, value):
+        d = self.data
+        d.red = value.red
+        d.green = value.green
+        d.blue = value.blue
+        d.alpha = value.alpha

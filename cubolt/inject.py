@@ -37,18 +37,23 @@ from cuwo.packet import UpdateFinished
 from twisted.internet.task import LoopingCall
 
 
+from particle import ParticleEffect
+
+
 class Injector:
-    def inject_update(self, server):
-        self.server_instance = server
+    def __init__(self, server):
+        self.server = server
+
+    def inject_update(self):
         self.update_finished_packet = UpdateFinished()
         self.time_packet = CurrentTime()
         
-        server.update = self.update
-        server.update_loop.f = server.update
+        self.server.update = self.update
+        self.server.update_loop.f = self.server.update
     
     # Replaces the default update algorithm in server.py #
     def update(self):
-        s = self.server_instance
+        s = self.server
 
         s.scripts.call('update')
 
@@ -61,6 +66,10 @@ class Injector:
             entity.data.mask = 0 
         s.broadcast_packet(self.update_finished_packet)
 
+        # Update particle effects
+        for effect in s.particle_effects:
+            effect.update()
+        
         # other updates
         update_packet = s.update_packet
         if s.items_changed:
@@ -83,3 +92,10 @@ class Injector:
         self.time_packet.time = s.get_time()
         self.time_packet.day = s.get_day()
         s.broadcast_packet(self.time_packet)
+    
+    def inject_particle_factory(self):
+        s = self.server
+        s.create_particle_effect = self.create_particle_effect
+    
+    def create_particle_effect(self):
+        return ParticleEffect(self.server)

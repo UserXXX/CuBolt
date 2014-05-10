@@ -44,7 +44,7 @@ from entity import EntityManager
 from inject import Injector
 
 
-class CWConnectionScript(ConnectionScript):
+class CuBoltConnectionScript(ConnectionScript):
     def __init__(self, parent, connection):
         ConnectionScript.__init__(self, parent, connection)
         self.entity = Entity()
@@ -65,8 +65,9 @@ class CWConnectionScript(ConnectionScript):
     def on_flags_update(self, event):
         self.entity.on_flags_update(event)
 
-class CWServerScript(ServerScript):
-    connection_class = CWConnectionScript
+        
+class CuBoltServerScript(ServerScript):
+    connection_class = CuBoltConnectionScript
     
     def __init__(self, server):
         print('[CB] Initializing CuBolt...')
@@ -77,12 +78,15 @@ class CWServerScript(ServerScript):
         server.entity_list = {}
         server.entity_manager = EntityManager(server)
         
-        self.injector = Injector()
-        self.injector.inject_update(server)
+        server.particle_effects = []
+        
+        self.injector = Injector(server)
+        self.injector.inject_update()
+        self.injector.inject_particle_factory()
         
         needed = time.time() - begin
         print('[CB] Done (%.2fs).' % needed)
         
         
 def get_class():
-    return CWServerScript
+    return CuBoltServerScript
