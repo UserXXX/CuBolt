@@ -42,8 +42,9 @@ try:
     has_particles = True
 except:
     has_particles = False
+from util import Color
 
-class Injector:
+class Injector(object):
     def __init__(self, server):
         self.server = server
 
@@ -103,3 +104,10 @@ class Injector:
     
     def create_particle_effect(self):
         return ParticleEffect(self.server)
+        
+    def inject_color_factory(self):
+        s = self.server
+        s.create_color = self.create_color
+        
+    def create_color(self, red=1.0, green=1.0, blue=1.0, alpha=1.0):
+        return Color(red, green, blue, alpha)

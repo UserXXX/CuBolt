@@ -28,7 +28,7 @@
 Some utility classes.
 """
 
-class Color:
+class Color(object):
     def __init__(self, red=1.0, green=1.0, blue=1.0, alpha=1.0):
         self.red = red
         self.green = green

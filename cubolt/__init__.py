@@ -83,6 +83,7 @@ class CuBoltServerScript(ServerScript):
         self.injector = Injector(server)
         self.injector.inject_update()
         self.injector.inject_particle_factory()
+        self.injector.inject_color_factory()
         
         needed = time.time() - begin
         print('[CB] Done (%.2fs).' % needed)

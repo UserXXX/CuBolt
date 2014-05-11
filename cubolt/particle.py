@@ -33,13 +33,15 @@ Particle effects.
 import time
 
 
+from cuwo.packet import ParticleData
+from cuwo.vector import Vector3
+
+
 from constants import PARTICLES_SOLID
-
-
 from util import Color
 
 
-class ParticleEffect:
+class ParticleEffect(object):
     def __init__(self, server):
         self.server = server
         self.interval = None
@@ -59,24 +61,12 @@ class ParticleEffect:
         self.data.something18 = 0
     
     def update(self):
-        if interval is not None:
-            difference = time.time() - self.__counter
+        if self.interval is not None:
+            t = time.time()
+            difference = t - self.__counter
             if difference > self.interval:
-                self.__counter = difference - self.interval
+                self.__counter = t - difference + self.interval
                 self.fire()
                 
     def fire(self):
         self.server.update_packet.particles.append(self.data)
-       
-    @property
-    def color(self):
-        d = self.data
-        return Color(d.red, d.green, d.blue, d.alpha)
-        
-    @color.setter
-    def color(self, value):
-        d = self.data
-        d.red = value.red
-        d.green = value.green
-        d.blue = value.blue
-        d.alpha = value.alpha
