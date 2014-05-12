@@ -135,12 +135,13 @@ class EntityManager:
         
     def set_hostility_id(self, entity_id_1, entity_id_2, hostile,
         hostility):
-        set = self.__Set(entity_id_1, entity_id_2)
-        setting = self.__hostilities[set]
-        setting.hostile = hostile
-        setting.hostility = hostility
-        self.server.entities[entity_id_1].mask |= MASK_HOSTILITY_SETTING
-        self.server.entities[entity_id_2].mask |= MASK_HOSTILITY_SETTING
+        if entity_id_1 != entity_id_2: 
+            set = self.__Set(entity_id_1, entity_id_2)
+            setting = self.__hostilities[set]
+            setting.hostile = hostile
+            setting.hostility = hostility
+            self.server.entities[entity_id_1].mask |= MASK_HOSTILITY_SETTING
+            self.server.entities[entity_id_2].mask |= MASK_HOSTILITY_SETTING
         
     def set_hostility_all(self, hostile, hostility):
         for entity_set in self.__hostilities:
