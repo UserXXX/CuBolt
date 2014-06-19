@@ -34,26 +34,29 @@ from cuwo.packet import CurrentTime
 from cuwo.packet import UpdateFinished
 
 
-from twisted.internet.task import LoopingCall
+from cuwo.loop import LoopingCall
 
 
 try:
-    from particle import ParticleEffect
+    from .particle import ParticleEffect
     has_particles = True
 except:
     has_particles = False
-from util import Color
+from .util import Color
 
 class Injector(object):
     def __init__(self, server):
         self.server = server
+        if not has_particles:
+            print(('The particles module could not be loaded. Are ' + 
+                'you using an old cuwo version?'))
 
     def inject_update(self):
         self.update_finished_packet = UpdateFinished()
         self.time_packet = CurrentTime()
         
         self.server.update = self.update
-        self.server.update_loop.f = self.server.update
+        self.server.update_loop.func = self.server.update
     
     # Replaces the default update algorithm in server.py #
     def update(self):
@@ -65,7 +68,7 @@ class Injector(object):
         # The client doesn't allow friendly display and hostile
         # behaviour, so have a little workaround...
         em = s.entity_manager
-        for id, entity in s.entity_list.iteritems():
+        for id, entity in s.entity_list.items():
             em._update_hostility(entity)
             entity.data.mask = 0 
         s.broadcast_packet(self.update_finished_packet)
@@ -76,21 +79,16 @@ class Injector(object):
         
         # other updates
         update_packet = s.update_packet
-        if s.items_changed:
-            for chunk, items in s.chunk_items.iteritems():
-                item_list = ChunkItems()
-                item_list.chunk_x, item_list.chunk_y = chunk
-                item_list.items = items
-                update_packet.chunk_items.append(item_list)
+        for chunk in s.updated_chunks:
+            chunk.on_update(update_packet)
         s.broadcast_packet(update_packet)
         update_packet.reset()
 
         # reset drop times
-        if s.items_changed:
-            for items in s.chunk_items.values():
-                for item in items:
-                    item.drop_time = 0
-            s.items_changed = False
+        for chunk in s.updated_chunks:
+            chunk.on_post_update()
+
+        s.updated_chunks.clear()
 
         # time update
         self.time_packet.time = s.get_time()

@@ -37,8 +37,8 @@ from cuwo.packet import ParticleData
 from cuwo.vector import Vector3
 
 
-from constants import PARTICLES_SOLID
-from util import Color
+from .constants import PARTICLES_SOLID
+from .util import Color
 
 
 class ParticleEffect(object):

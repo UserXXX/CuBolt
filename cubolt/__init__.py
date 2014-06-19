@@ -37,11 +37,11 @@ from cuwo.script import ConnectionScript
 from cuwo.script import ServerScript
 
 
-from entity import Entity
-from entity import EntityManager
+from .entity import Entity
+from .entity import EntityManager
 
 
-from inject import Injector
+from .inject import Injector
 
 
 class CuBoltConnectionScript(ConnectionScript):
