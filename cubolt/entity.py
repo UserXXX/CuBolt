@@ -29,8 +29,7 @@
 Entity handling.
 """
 
-
-from cuwo.entity import FLAGS_1_HOSTILE
+from cuwo.entity import HOSTILE_FLAG
 
 
 from cuwo.packet import EntityUpdate
@@ -159,7 +158,7 @@ class EntityManager:
             self.__hostilities[accessor] = setting
         
         if self.default_hostile:
-            entity.data.flags_1 |= FLAGS_1_HOSTILE
+            entity.data.flags |= HOSTILE_FLAG
         entity.data.hostile_type = self.default_hostility
         
     def _unregister_entity(self, entity):
@@ -189,7 +188,7 @@ class EntityManager:
                 
     def __update_single_hostility(self, receiver, sender, hostility):
         if hostility.hostile:
-            sender.data.flags_1 |= FLAGS_1_HOSTILE
+            sender.data.flags |= HOSTILE_FLAG
             sender.data.hostile_type = hostility.hostility
             if hostility.hostility == ENTITY_HOSTILITY_FRIENDLY_PLAYER:
                 sender.data.max_hp_multiplier = \
@@ -198,7 +197,7 @@ class EntityManager:
                 sender.data.max_hp_multiplier = \
                     sender._max_hp_multiplier*2.0
         else:
-            sender.data.flags_1 &= ~FLAGS_1_HOSTILE
+            sender.data.flags &= ~HOSTILE_FLAG
             sender.data.hostile_type = ENTITY_HOSTILITY_FRIENDLY_PLAYER
             sender.data.max_hp_multiplier = sender._max_hp_multiplier
         
@@ -213,7 +212,7 @@ class EntityManager:
             receiver_con.send_packet(entity_update)
     
     def __clean_up_entity_data(self, entity):
-        entity.data.flags_1 |= FLAGS_1_HOSTILE
+        entity.data.flags |= HOSTILE_FLAG
         entity.data.hostile_type = ENTITY_HOSTILITY_FRIENDLY_PLAYER
         entity.data.max_hp_multiplier = entity._max_hp_multiplier
     
