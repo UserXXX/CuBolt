@@ -25,9 +25,7 @@
 # This file is part of CuBolt.
 
 
-"""
-Constants.
-"""
+"""Constants."""
 
 
 # Bitmasks for entity update packets.

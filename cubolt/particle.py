@@ -25,9 +25,7 @@
 # This file is part of CuBolt.
 
 
-"""
-Particle effects.
-"""
+"""Particle effects."""
 
 
 import time
@@ -41,8 +39,15 @@ from .constants import PARTICLES_SOLID
 from .util import Color
 
 
-class ParticleEffect(object):
+class ParticleEffect:
+    """Class for managing particle effects."""
     def __init__(self, server):
+        """Creates a new particle effect.
+        
+        Keyword arguments:
+        server -- Server instance
+        
+        """
         self.server = server
         self.interval = None
         self.__counter = time.time()
@@ -61,6 +66,7 @@ class ParticleEffect(object):
         self.data.something18 = 0
     
     def update(self):
+        """Updates the particle effect if an interval is set."""
         if self.interval is not None:
             t = time.time()
             difference = t - self.__counter
@@ -69,4 +75,5 @@ class ParticleEffect(object):
                 self.fire()
                 
     def fire(self):
+        """Fires the particle effect."""
         self.server.update_packet.particles.append(self.data)

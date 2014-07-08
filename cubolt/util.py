@@ -24,12 +24,20 @@
 #
 # This file is part of CuBolt.
 
-"""
-Some utility classes.
-"""
+"""Some utility classes."""
 
-class Color(object):
+class Color:
+    """Class representing a color.""" 
     def __init__(self, red=1.0, green=1.0, blue=1.0, alpha=1.0):
+        """Creates a new color, the values go from 0.0 to 1.0.
+        
+        Keyword parameters:
+        red -- Red component
+        green -- Green component
+        blue -- Blue component
+        alpha -- Alpha component
+        
+        """
         self.red = red
         self.green = green
         self.blue = blue

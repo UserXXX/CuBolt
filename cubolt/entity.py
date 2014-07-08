@@ -25,9 +25,7 @@
 # This file is part of CuBolt.
 
 
-"""
-Entity handling.
-"""
+"""Entity handling."""
 
 from cuwo.entity import HOSTILE_FLAG
 
@@ -52,7 +50,9 @@ from .constants import ENTITY_HOSTILITY_FRIENDLY
 
 
 class Entity:
+    """Class representing a CuBolt entity."""
     def __init__(self):
+        """Creates a new entity."""
         self.__max_hp_multiplier = 100
         self.__joined = False
         self.__manager = None
@@ -60,6 +60,14 @@ class Entity:
         self.data = None
     
     def init(self, entity_id, entity_data, manager):
+        """Initializes this entity.
+        
+        Keyword arguments:
+        entity_id -- Entity ID
+        entity_data -- Entity data
+        manager -- CuBolt entity manager
+        
+        """
         self.id = entity_id
         self.data = entity_data
         self._max_hp_multiplier = self.data.max_hp_multiplier
@@ -67,6 +75,13 @@ class Entity:
         self.__manager._register_entity(self)
         
     def damage(self, damage, stun_duration=0):
+        """Damages this entity.
+        
+        Keyword arguments:
+        damage -- Amount of damage to deal
+        stun_duration -- Duration of the stun in ms
+        
+        """
         packet = HitPacket()
         packet.entity_id = self.id
         packet.target_id = self.id
@@ -82,30 +97,75 @@ class Entity:
         self.__manager.server.update_packet.player_hits.append(packet)
         
     def heal(self, amount):
+        """Heals this entity.
+        
+        Keyword arguments:
+        amount -- Amount of life to heal
+        
+        """
         self.damage(-amount)
         
     def kill(self):
+        """Kills this entity."""
         self.damage(self.data.hp + 100.0)
         
     def stun(self, duration):
+        """Stuns this entity.
+        
+        Keyword arguments:
+        duration -- Stun duration in ms
+        
+        """
         self.damage(0, duration)
         
     def set_hostility_to(self, entity, hostile, hostility):
+        """Sets the hostility of this entity to another and vice
+        versa.
+        
+        Keyword arguments:
+        entity -- Entity to set the hostility to
+        hostile -- True, for hostile, False for friendly
+        hostility -- Hostility mode, see CuBolt constants
+        
+        """
         self.__manager.set_hostility(self, entity, hostile, hostility)
         
     def set_hostility_to_id(self, entity_id, hostile, hostility):
+        """Sets the hostility of this entity to another and vice
+        versa.
+        
+        Keyword arguments:
+        entity_id -- ID of the entity to set the hostility to
+        hostile -- True, for hostile, False for friendly
+        hostility -- Hostility mode, see CuBolt constants
+        
+        """
         self.__manager.set_hostility_id(self.id, entity_id, hostile,
             hostility)
             
     def set_hostility_to_all(self, hostile, hostility):
+        """Sets the hostility to all entities.
+        
+        Keyword arguments:
+        hostile -- True, for hostile, False for friendly
+        hostility -- Hostility mode, see CuBolt constants
+        
+        """
         server = self.__manager.server
         for id, entity in server.entity_list.items():
             self.set_hostility_to(entity, hostile, hostility)
     
     def on_unload(self):
+        """Unloads this entity."""
         self.__manager._unregister_entity(self)
         
     def on_entity_update(self, event):
+        """Handles an entity update event.
+        
+        Keyword arguments:
+        event -- Event arguments
+        
+        """
         if not self.__joined:
             self.__joined = True
             self.data.mask |= MASK_HOSTILITY_SETTING
@@ -122,7 +182,14 @@ class Entity:
         
         
 class EntityManager:
+    """Entity manager for handling hostilities."""
     def __init__(self, server):
+        """Creates a new EntityManager.
+        
+        Keyword arguments:
+        server -- Current server instance
+        
+        """
         self.server = server
         self.default_hostile = False
         self.default_hostility = ENTITY_HOSTILITY_FRIENDLY_PLAYER
@@ -130,10 +197,32 @@ class EntityManager:
         self.__entity_update_packet = EntityUpdate()
         
     def set_hostility(self, entity1, entity2, hostile, hostility):
+        """Sets the hostility behaviour between two entities.
+        
+        Keyword arguments:
+        entity1 -- First entity
+        entity2 -- Second entity
+        hostile -- True, if the entities shall be hostile, otherwise
+                   False
+        hostility -- One of the hostility constants (see
+                  cubolt/constants.py)
+        
+        """
         self.set_hostility_id(entity1.id, entity2.id)
         
     def set_hostility_id(self, entity_id_1, entity_id_2, hostile,
         hostility):
+        """Sets the hostility behaviour between two entities.
+        
+        Keyword arguments:
+        entity_id_1 -- First entity id
+        entity_id_2 -- Second entity id
+        hostile -- True, if the entities shall be hostile, otherwise
+                   False
+        hostility -- One of the hostility constants (see
+                  cubolt/constants.py)
+        
+        """
         if entity_id_1 != entity_id_2: 
             set = self.__Set(entity_id_1, entity_id_2)
             setting = self.__hostilities[set]
@@ -143,6 +232,15 @@ class EntityManager:
             self.server.entities[entity_id_2].mask |= MASK_HOSTILITY_SETTING
         
     def set_hostility_all(self, hostile, hostility):
+        """Sets the hostility behaviour between all entities.
+        
+        Keyword arguments:
+        hostile -- True, if the entities shall be hostile, otherwise
+                   False
+        hostility -- One of the hostility constants (see
+                  cubolt/constants.py)
+        
+        """
         for entity_set in self.__hostilities:
             setting = self.__hostilities[entity_set]
             setting.hostile = hostile
@@ -151,6 +249,12 @@ class EntityManager:
             entity.data.mask |= MASK_HOSTILITY_SETTING
 
     def _register_entity(self, entity):
+        """Registers an entity and does the main initialization work.
+        
+        Keyword arguments:
+        entity -- Entity to register
+        
+        """
         for id, e in self.server.entity_list.items():
             accessor = self.__Set(e.id, entity.id)
             setting = self.__HostilitySetting(self.default_hostile,
@@ -162,12 +266,25 @@ class EntityManager:
         entity.data.hostile_type = self.default_hostility
         
     def _unregister_entity(self, entity):
+        """Unregisters an entity.
+        
+        Keyword arguments:
+        entity -- Entity to unregister
+        
+        """
         for id, e in self.server.entity_list.items():
             if e.id != entity.id:
                 del self.__hostilities[self.__Set(e.id, entity.id)]
             
                 
-    def _update_hostility(self, entity): # Called from server in update routine.
+    def _update_hostility(self, entity):
+        """Updates the hostility of an entity. Called from server in
+        update routine.
+        
+        Keyword arguments:
+        entity -- Entity to update
+        
+        """
         for id, e in self.server.entity_list.items():
             if e.id == entity.id:
                 setting = self.__HostilitySetting(False,
@@ -180,6 +297,12 @@ class EntityManager:
         self.__clean_up_entity_data(entity)
         
     def _update_others(self, entity):
+        """Updates the entity data for all other entities.
+        
+        Keyword arguments:
+        entity -- Entity which data's shall be updated
+        
+        """
         for id, e in self.server.entity_list.items():
             if e.id != entity.id:
                 self.__update_single_hostility(entity, e,
@@ -187,6 +310,14 @@ class EntityManager:
                 self.__clean_up_entity_data(e)
                 
     def __update_single_hostility(self, receiver, sender, hostility):
+        """Updates the hostility data of an entity for a single player.
+        
+        Keyword arguments:
+        receiver -- Receiver of the entities data
+        sender -- Sender thats data shall be transferred
+        hostility -- Hostility to send
+        
+        """
         if hostility.hostile:
             sender.data.flags |= HOSTILE_FLAG
             sender.data.hostile_type = hostility.hostility
@@ -212,24 +343,52 @@ class EntityManager:
             receiver_con.send_packet(entity_update)
     
     def __clean_up_entity_data(self, entity):
+        """Cleans up the entities data after sending the data.
+        
+        Keyword arguments:
+        entity -- Entity that's data shall be cleaned up
+        
+        """
         entity.data.flags |= HOSTILE_FLAG
         entity.data.hostile_type = ENTITY_HOSTILITY_FRIENDLY_PLAYER
         entity.data.max_hp_multiplier = entity._max_hp_multiplier
     
     class __Set:
+        """Private class for storing the hostility settings between
+        entities.
+        
+        """
         def __init__(self, t1, t2):
+            """Creates a new Set.
+            
+            Keyword arguments:
+            t1 -- First data blob
+            t2 -- Second data blob
+            
+            """
             self.t1 = t1
             self.t2 = t2
             self.__hash = hash(t1) + hash(t2)
         
         def __hash__(self):
+            """Returns the calculated hash."""
             return self.__hash
         
         def __eq__(self, other):
+            """Checks if another object is equal to this one."""
             return (self.t1 == other.t1 and self.t2 == other.t2) or \
                 (self.t1 == other.t2 and self.t2 == other.t1)
     
     class __HostilitySetting:
+        """Private class for storing hostility settings."""
         def __init__(self, hostile, hostility):
+            """Creates a new HostilitySetting.
+            
+            hostile -- True, if the regarding entities are hostile,
+                       otherwise False.
+            hostility -- One of the hostility constants (see
+                  cubolt/constants.py)
+                  
+            """
             self.hostile = hostile
             self.hostility = hostility

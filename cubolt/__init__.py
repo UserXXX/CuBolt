@@ -25,9 +25,7 @@
 # This file is part of CuBolt.
 
 
-"""
-CuBolt module initialization.
-"""
+"""CuBolt module initialization."""
 
 
 import time
@@ -45,31 +43,65 @@ from .inject import Injector
 
 
 class CuBoltConnectionScript(ConnectionScript):
+    """Connection script for CuBolt."""
     def __init__(self, parent, connection):
+        """Creates a new instance of CuBoltConnectionScript.
+        
+        Keyword arguments:
+        parent -- Parent script
+        connection -- Player connection
+        
+        """
         ConnectionScript.__init__(self, parent, connection)
         self.entity = Entity()
         
     def on_unload(self):
+        """Unloads the connection script."""
         self.entity.on_unload()
         del self.server.entity_list[self.entity.id]
         
     def on_join(self, event):
+        """Handles the on_join event.
+        
+        Keyword arguments:
+        event -- Event parameter
+        
+        """
         con = self.connection
         em = self.server.entity_manager
         self.entity.init(con.entity_id, con.entity_data, em)
         self.server.entity_list[self.entity.id] = self.entity
     
     def on_entity_update(self, event):
+        """Handles an entity update event.
+        
+        Keyword arguments:
+        event -- Event parameter
+        
+        """
         self.entity.on_entity_update(event)
     
     def on_flags_update(self, event):
+        """Handles an update of the entity flags.
+        
+        Keyword arguments:
+        event -- Event parameter
+        
+        """
         self.entity.on_flags_update(event)
 
         
 class CuBoltServerScript(ServerScript):
+    """ServerScript for CuBolt."""
     connection_class = CuBoltConnectionScript
     
     def __init__(self, server):
+        """Creates a new instance of CuBoltServerScript.
+        
+        Keyword arguments:
+        server -- Server instance
+        
+        """
         print('[CB] Initializing CuBolt...')
         begin = time.time()
         
@@ -90,4 +122,11 @@ class CuBoltServerScript(ServerScript):
         
         
 def get_class():
+    """Gets the ServerScript instance to register.
+    
+    Return value:
+    ServerScript to register, in this case it's the
+    CuBoltServerScript.
+    
+    """
     return CuBoltServerScript

@@ -25,9 +25,7 @@
 # This file is part of CuBolt.
 
 
-"""
-Code injected into cuwo.
-"""
+"""Code injected into cuwo."""
 
 
 from cuwo.packet import CurrentTime
@@ -37,7 +35,7 @@ from cuwo.packet import UpdateFinished
 from cuwo.loop import LoopingCall
 
 
-try:
+try: # Try import the particle effect
     from .particle import ParticleEffect
     has_particles = True
 except:
@@ -45,25 +43,36 @@ except:
 from .util import Color
 
 class Injector(object):
+    """Class holding all methods injected into cuwo."""
     def __init__(self, server):
+        """Creates the injector.
+        
+        Keyword arguments:
+        server -- Server instance
+        
+        """
         self.server = server
         if not has_particles:
             print(('The particles module could not be loaded. Are ' + 
                 'you using an old cuwo version?'))
 
     def inject_update(self):
+        """Injects CuBolts update routine into cuwo."""
         self.update_finished_packet = UpdateFinished()
         self.time_packet = CurrentTime()
         
         self.server.update = self.update
         self.server.update_loop.func = self.server.update
     
-    # Replaces the default update algorithm in server.py #
     def update(self):
+        """CuBolts update routine, replaces cuwos update routine."""
         s = self.server
 
         s.scripts.call('update')
 
+        for entity in s.update_entities:
+            entity.update()
+        
         # entity updates
         # The client doesn't allow friendly display and hostile
         # behaviour, so have a little workaround...
@@ -96,16 +105,20 @@ class Injector(object):
         s.broadcast_packet(self.time_packet)
     
     def inject_particle_factory(self):
+        """Injects CuBolts particle factory into cuwo."""
         if has_particles:
             s = self.server
             s.create_particle_effect = self.create_particle_effect
     
     def create_particle_effect(self):
+        """Creates a particle effect."""
         return ParticleEffect(self.server)
         
     def inject_color_factory(self):
+        """Injects CuBolts color factory into cuwo."""
         s = self.server
         s.create_color = self.create_color
         
     def create_color(self, red=1.0, green=1.0, blue=1.0, alpha=1.0):
+        """Creates a color."""
         return Color(red, green, blue, alpha)
