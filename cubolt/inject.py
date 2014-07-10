@@ -35,11 +35,7 @@ from cuwo.packet import UpdateFinished
 from cuwo.loop import LoopingCall
 
 
-try: # Try import the particle effect
-    from .particle import ParticleEffect
-    has_particles = True
-except:
-    has_particles = False
+from .particle import ParticleEffect
 from .util import Color
 
 class Injector(object):
@@ -52,9 +48,6 @@ class Injector(object):
         
         """
         self.server = server
-        if not has_particles:
-            print(('The particles module could not be loaded. Are ' + 
-                'you using an old cuwo version?'))
 
     def inject_update(self):
         """Injects CuBolts update routine into cuwo."""
@@ -103,21 +96,25 @@ class Injector(object):
         self.time_packet.time = s.get_time()
         self.time_packet.day = s.get_day()
         s.broadcast_packet(self.time_packet)
-    
-    def inject_particle_factory(self):
-        """Injects CuBolts particle factory into cuwo."""
-        if has_particles:
-            s = self.server
-            s.create_particle_effect = self.create_particle_effect
-    
+        
+    def inject_factory(self):
+        """Injects CuBolts factory into the server."""
+        self.server.cubolt_factory = CuBoltFactory(self.server)
+        
+class CuBoltFactory:
+    """A factory for various CuBolt classes."""
+    def __init__(self, server):
+        """Creates a new CuBoltFactory.
+        
+        Keyword arguments:
+        server -- Current server instance
+        
+        """
+        self.server = server
+
     def create_particle_effect(self):
         """Creates a particle effect."""
         return ParticleEffect(self.server)
-        
-    def inject_color_factory(self):
-        """Injects CuBolts color factory into cuwo."""
-        s = self.server
-        s.create_color = self.create_color
         
     def create_color(self, red=1.0, green=1.0, blue=1.0, alpha=1.0):
         """Creates a color."""
