@@ -35,6 +35,13 @@ from cuwo.script import ConnectionScript
 from cuwo.script import ServerScript
 
 
+try:
+    from cuwo.world import World
+    has_world = True
+except ImportError:
+    has_world = False
+
+
 from .entity import Entity
 from .entity import EntityManager
 
@@ -53,12 +60,12 @@ class CuBoltConnectionScript(ConnectionScript):
         
         """
         ConnectionScript.__init__(self, parent, connection)
-        self.entity = Entity()
+        self.cubolt_entity = Entity()
         
     def on_unload(self):
         """Unloads the connection script."""
-        self.entity.on_unload()
-        del self.server.entity_list[self.entity.id]
+        self.cubolt_entity.on_unload()
+        del self.server.entity_list[self.cubolt_entity.id]
         
     def on_join(self, event):
         """Handles the on_join event.
@@ -69,8 +76,9 @@ class CuBoltConnectionScript(ConnectionScript):
         """
         con = self.connection
         em = self.server.entity_manager
-        self.entity.init(con.entity_id, con.entity_data, em)
-        self.server.entity_list[self.entity.id] = self.entity
+        con.entity.x = 7
+        self.cubolt_entity.init(con.entity_id, con.entity, em)
+        self.server.entity_list[self.cubolt_entity.id] = self.cubolt_entity
     
     def on_entity_update(self, event):
         """Handles an entity update event.
@@ -79,7 +87,7 @@ class CuBoltConnectionScript(ConnectionScript):
         event -- Event parameter
         
         """
-        self.entity.on_entity_update(event)
+        self.cubolt_entity.on_entity_update(event)
     
     def on_flags_update(self, event):
         """Handles an update of the entity flags.
@@ -88,8 +96,8 @@ class CuBoltConnectionScript(ConnectionScript):
         event -- Event parameter
         
         """
-        self.entity.on_flags_update(event)
-
+        self.cubolt_entity.on_flags_update(event)
+        
         
 class CuBoltServerScript(ServerScript):
     """ServerScript for CuBolt."""
@@ -115,6 +123,11 @@ class CuBoltServerScript(ServerScript):
         self.injector = Injector(server)
         self.injector.inject_update()
         self.injector.inject_factory()
+        
+        if not has_world:
+            print(('[CB] The world module could not be imported, ' + 
+                'are you using an old cuwo version?'))
+        self.injector.inject_block_methods()
         
         needed = time.time() - begin
         print('[CB] Done (%.2fs).' % needed)

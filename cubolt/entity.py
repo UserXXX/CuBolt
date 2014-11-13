@@ -223,13 +223,16 @@ class EntityManager:
                   cubolt/constants.py)
         
         """
+        # players currently seem to be the only entities...
         if entity_id_1 != entity_id_2: 
             set = self.__Set(entity_id_1, entity_id_2)
             setting = self.__hostilities[set]
             setting.hostile = hostile
             setting.hostility = hostility
-            self.server.entities[entity_id_1].mask |= MASK_HOSTILITY_SETTING
-            self.server.entities[entity_id_2].mask |= MASK_HOSTILITY_SETTING
+            entity1 = self.server.players[entity_id_1].entity
+            entity1.mask |= MASK_HOSTILITY_SETTING
+            entity2 = self.server.players[entity_id_2].entity
+            entity2.mask |= MASK_HOSTILITY_SETTING
         
     def set_hostility_all(self, hostile, hostility):
         """Sets the hostility behaviour between all entities.
@@ -245,8 +248,9 @@ class EntityManager:
             setting = self.__hostilities[entity_set]
             setting.hostile = hostile
             setting.hostility = hostility
-        for id, entity in self.server.entity_list.items():
-            entity.data.mask |= MASK_HOSTILITY_SETTING
+        # players currently seem to be the only entities...
+        for player in self.server.players.values():
+            player.entity.mask |= MASK_HOSTILITY_SETTING
 
     def _register_entity(self, entity):
         """Registers an entity and does the main initialization work.

@@ -55,10 +55,7 @@ class ParticleEffect:
         self.data = ParticleData()
         self.data.pos = Vector3(0.0, 0.0, 0.0)
         self.data.accel = Vector3(0.0, 0.0, 0.0)
-        self.data.color_red = 1.0
-        self.data.color_blue = 1.0
-        self.data.color_green = 1.0
-        self.data.color_alpha = 1.0
+        self.data.color = (1.0, 1.0, 1.0, 1.0)
         self.data.scale = 1.0
         self.data.count = 100
         self.data.particle_type = PARTICLES_SOLID
