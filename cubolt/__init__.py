@@ -42,7 +42,6 @@ except ImportError:
     has_world = False
 
 
-from .entity import Entity
 from .entity import EntityManager
 
 
@@ -60,12 +59,6 @@ class CuBoltConnectionScript(ConnectionScript):
         
         """
         ConnectionScript.__init__(self, parent, connection)
-        self.cubolt_entity = Entity()
-        
-    def on_unload(self):
-        """Unloads the connection script."""
-        self.cubolt_entity.on_unload()
-        del self.server.entity_list[self.cubolt_entity.id]
         
     def on_join(self, event):
         """Handles the on_join event.
@@ -74,11 +67,7 @@ class CuBoltConnectionScript(ConnectionScript):
         event -- Event parameter
         
         """
-        con = self.connection
-        em = self.server.entity_manager
-        con.entity.x = 7
-        self.cubolt_entity.init(con.entity_id, con.entity, em)
-        self.server.entity_list[self.cubolt_entity.id] = self.cubolt_entity
+        self.entity.cubolt_entity.init()
     
     def on_entity_update(self, event):
         """Handles an entity update event.
@@ -87,7 +76,7 @@ class CuBoltConnectionScript(ConnectionScript):
         event -- Event parameter
         
         """
-        self.cubolt_entity.on_entity_update(event)
+        self.entity.cubolt_entity.on_entity_update(event)
     
     def on_flags_update(self, event):
         """Handles an update of the entity flags.
@@ -96,7 +85,7 @@ class CuBoltConnectionScript(ConnectionScript):
         event -- Event parameter
         
         """
-        self.cubolt_entity.on_flags_update(event)
+        self.entity.cubolt_entity.on_flags_update(event)
         
         
 class CuBoltServerScript(ServerScript):
@@ -115,7 +104,6 @@ class CuBoltServerScript(ServerScript):
         
         ServerScript.__init__(self, server)
         
-        server.entity_list = {}
         server.entity_manager = EntityManager(server)
         
         server.particle_effects = []
@@ -123,6 +111,7 @@ class CuBoltServerScript(ServerScript):
         self.injector = Injector(server)
         self.injector.inject_update()
         self.injector.inject_factory()
+        self.injector.inject_entity()
         
         if not has_world:
             print(('[CB] The world module could not be imported, ' + 

@@ -42,9 +42,9 @@ from cuwo.packet import UpdateFinished
 from cuwo.vector import Vector3
 
 
+from .entity import EntityExtension
 from .model import CubeModel
 from .particle import ParticleEffect
-from .util import Color
 from .world import CBBlock
 from .world import CBChunk
 
@@ -92,9 +92,9 @@ class Injector(object):
         # The client doesn't allow friendly display and hostile
         # behaviour, so have a little workaround...
         em = s.entity_manager
-        for id, entity in s.entity_list.items():
+        for id, entity in s.world.entities.items():
             em._update_hostility(entity)
-            entity.data.mask = 0 
+            entity.mask = 0 
         s.broadcast_packet(self.update_finished_packet)
 
         # Update particle effects
@@ -118,6 +118,38 @@ class Injector(object):
         self.time_packet.time = s.get_time()
         self.time_packet.day = s.get_day()
         s.broadcast_packet(self.time_packet)
+        
+    def inject_entity(self):
+        """Injects entity specific methods."""
+        self.server.world.create_entity = self.create_entity
+        
+    def create_entity(self, entity_id=None):
+        """Creates a new entity.
+        
+        Keyword arguments:
+        entity_id -- Static ID for the entity to create
+        
+        """
+        s = self.server
+        e = s.world.entity_class(s.world, entity_id)
+        self.inject_into_entity(e)
+        return e
+        
+    def inject_into_entity(self, entity):
+        """Injects all entity specific methods into the entity.
+        
+        entity -- cuwo entity to inject into
+        
+        """
+        em = self.server.entity_manager
+        entity.cubolt_entity = EntityExtension(entity, em)
+        ce = entity.cubolt_entity
+        entity.heal = ce.heal
+        entity.stun = ce.stun
+        entity.set_hostility_to = ce.set_hostility_to
+        entity.set_hostility_to_id = ce.set_hostility_to_id
+        entity.set_hostility_to_all = ce.set_hostility_to_all
+        entity.destroy = ce.destroy
         
     def inject_block_methods(self):
         self.server.block_changed = self.block_changed
@@ -159,13 +191,9 @@ class CuBoltFactory:
         """
         self.server = server
 
-    def create_particle_effect(self):
+    def create_particle_effect(self, data=None):
         """Creates a particle effect."""
-        return ParticleEffect(self.server)
-        
-    def create_color(self, red=1.0, green=1.0, blue=1.0, alpha=1.0):
-        """Creates a color."""
-        return Color(red, green, blue, alpha)
+        return ParticleEffect(self.server, pdata=data)
         
     def load_model(self, filename, from_database=False):
         """Loads a .cub model.

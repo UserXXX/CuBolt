@@ -35,13 +35,12 @@ from cuwo.packet import ParticleData
 from cuwo.vector import Vector3
 
 
-from .constants import PARTICLES_SOLID
-from .util import Color
+from cuwo.constants import SOLID_PARTICLE
 
 
 class ParticleEffect:
     """Class for managing particle effects."""
-    def __init__(self, server):
+    def __init__(self, server, pdata=None):
         """Creates a new particle effect.
         
         Keyword arguments:
@@ -52,15 +51,18 @@ class ParticleEffect:
         self.interval = None
         self.__counter = time.time()
         
-        self.data = ParticleData()
-        self.data.pos = Vector3(0.0, 0.0, 0.0)
-        self.data.accel = Vector3(0.0, 0.0, 0.0)
-        self.data.color = (1.0, 1.0, 1.0, 1.0)
-        self.data.scale = 1.0
-        self.data.count = 100
-        self.data.particle_type = PARTICLES_SOLID
-        self.data.spreading = 1.0
-        self.data.something18 = 0
+        if pdata is None:
+            self.data = ParticleData()
+            self.data.pos = Vector3(0.0, 0.0, 0.0)
+            self.data.accel = Vector3(0.0, 0.0, 0.0)
+            self.data.color = (1.0, 1.0, 1.0, 1.0)
+            self.data.scale = 1.0
+            self.data.count = 100
+            self.data.particle_type = SOLID_PARTICLE
+            self.data.spreading = 1.0
+            self.data.something18 = 0
+        else:
+            self.data = pdata
     
     def update(self):
         """Updates the particle effect if an interval is set."""

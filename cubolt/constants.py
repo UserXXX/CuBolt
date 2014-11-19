@@ -27,25 +27,6 @@
 
 """Constants."""
 
-
-# Bitmasks for entity update packets.
-MASK_HOSTILITY = 1 << 7
-MASK_FLAGS = 1 << 14
-MASK_MULTIPLIERS = 1 << 30
-
-
-# Entity hostility settings
-ENTITY_HOSTILITY_FRIENDLY_PLAYER = 0
-ENTITY_HOSTILITY_HOSTILE = 1
-ENTITY_HOSTILITY_FRIENDLY = 2
-
-
-# Particle modes
-PARTICLES_SOLID = 0
-PARTICLES_BOMB = 1
-PARTICLES_NO_ACCELLERATION = 3
-PARTICLES_NO_GRAVITY = 4
-
 # Block type constants
 BLOCK_TYPE_EMPTY = 0
 BLOCK_TYPE_WATER = 2
