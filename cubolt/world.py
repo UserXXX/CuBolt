@@ -1,6 +1,6 @@
 # The MIT License (MIT)
 #
-# Copyright (c) 2014 Bjoern Lange
+# Copyright (c) 2014-2015 Bjoern Lange
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation
@@ -32,6 +32,8 @@ import sqlite3
 import os.path
 
 
+from cuwo.constants import FULL_MASK
+from cuwo.types import AttributeDict
 from cuwo.vector import Vector3
 
 
@@ -39,6 +41,83 @@ from .constants import BLOCK_TYPE_EMPTY
 from .constants import BLOCK_TYPE_MOUNTAIN
 
 
+class CuBoltChunk:
+    def __init__(self, world, pos):
+        self.world = world
+        self.pos = pos
+        self.items = []
+        self.static_entities = {}
+
+        if not world.use_tgen:
+            return
+
+        f = world.get_data(pos)
+        f.add_done_callback(self.on_chunk)
+
+    def on_chunk(self, f):
+        self.data = f.result()
+
+        self.items.extend(self.data.items)
+        self.data.items = []
+
+        for entity_id, data in enumerate(self.data.static_entities):
+            header = data.header
+            new_entity = self.world.static_entity_class(entity_id, header,
+                                                        self)
+            self.static_entities[entity_id] = new_entity
+
+        if self.world.use_entities:
+            for data in self.data.dynamic_entities:
+                entity = self.world.create_entity(data.entity_id)
+                data.set_entity(entity)
+                
+                # inserted
+                entity.cubolt_entity.on_entity_update(AttributeDict(mask=FULL_MASK))
+                # inserted end
+                
+                entity.reset()
+
+        self.update()
+        
+        # inserted
+        self.world.server.scripts.call('on_chunk_load', chunk=self)
+        # inserted end
+
+    def add_item(self, item):
+        self.items.append(item)
+        self.update()
+
+    def remove_item(self, index):
+        ret = self.items.pop(index).item_data
+        self.update()
+        return ret
+
+    def get_entity(self, entity_id):
+        return self.static_entities[entity_id]
+
+    def on_post_update(self):
+        for item in self.items:
+            item.drop_time = 0
+
+    def update(self):
+        pass
+
+
+class CuBoltTGenChunk:
+    def __init__(self, tgenChunk):
+        self.items = tgenChunk.items
+        self.static_entities = tgenChunk.entities
+        self.dynamic_entities = tgenChunk.dynamic_entities
+        self.x = tgenChunk.x
+        self.y = tgenChunk.y
+        
+        
+class CuBoltChunkData:
+    def __init__(self, tgenChunkData):
+        pass
+        
+# unused from here on
+        
 class ChunkEntryHelper:
     def __init__(self):
         self.r = 0

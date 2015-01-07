@@ -1,6 +1,6 @@
 # The MIT License (MIT)
 #
-# Copyright (c) 2014 Bjoern Lange
+# Copyright (c) 2014-2015 Bjoern Lange
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation
@@ -35,7 +35,7 @@ from cuwo.loop import LoopingCall
 
 
 from cuwo.packet import CurrentTime
-from cuwo.packet import Packet4Struct1 # Block delta update
+from cuwo.packet import Packet4Struct1 as BlockDeltaUpdate
 from cuwo.packet import UpdateFinished
 
 
@@ -45,6 +45,7 @@ from cuwo.vector import Vector3
 from .entity import EntityExtension
 from .model import CubeModel
 from .particle import ParticleEffect
+from .world import CuBoltChunk
 from .world import CBBlock
 from .world import CBChunk
 
@@ -77,7 +78,7 @@ class Injector(object):
             
         # block updates
         for block in self.__changed_blocks:
-            struct = Packet4Struct1()
+            struct = BlockDeltaUpdate()
             struct.block_pos = block.pos # absolute pos
             struct.color_red = block.r
             struct.color_green = block.g
@@ -91,10 +92,9 @@ class Injector(object):
         # entity updates
         # The client doesn't allow friendly display and hostile
         # behaviour, so have a little workaround...
-        em = s.entity_manager
-        for id, entity in s.world.entities.items():
-            em._update_hostility(entity)
-            entity.mask = 0 
+        players = s.players.values()
+        for entity in s.world.entities.values():
+            entity.cubolt_entity.send(players)
         s.broadcast_packet(self.update_finished_packet)
 
         # Update particle effects
@@ -141,16 +141,19 @@ class Injector(object):
         entity -- cuwo entity to inject into
         
         """
-        em = self.server.entity_manager
-        entity.cubolt_entity = EntityExtension(entity, em)
+        entity.cubolt_entity = EntityExtension(entity, self.server)
         ce = entity.cubolt_entity
         entity.heal = ce.heal
         entity.stun = ce.stun
-        entity.set_hostility_to = ce.set_hostility_to
-        entity.set_hostility_to_id = ce.set_hostility_to_id
-        entity.set_hostility_to_all = ce.set_hostility_to_all
+        entity.set_relation_to = ce.set_relation_to
+        entity.set_relation_to_id = ce.set_relation_to_id
+        entity.set_relation_both = ce.set_relation_both
+        entity.set_relation_both_id = ce.set_relation_both_id
         entity.destroy = ce.destroy
-        
+        entity.is_npc = ce.is_npc
+        entity.is_player = ce.is_player
+    
+    # unused begin
     def inject_block_methods(self):
         self.server.block_changed = self.block_changed
         self.server.get_block = self.get_block
@@ -174,6 +177,13 @@ class Injector(object):
                 chunk.data)
         else:
             return None
+    #unused end
+    
+    def inject_world_modification(self):
+        s = self.server
+        w = s.world
+        w.server = s
+        w.chunk_class = CuBoltChunk
         
     def inject_factory(self):
         """Injects CuBolts factory into the server."""

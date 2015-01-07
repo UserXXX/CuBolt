@@ -1,6 +1,6 @@
 # The MIT License (MIT)
 #
-# Copyright (c) 2014 Bjoern Lange
+# Copyright (c) 2014-2015 Bjoern Lange
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation
@@ -35,6 +35,9 @@ from cuwo.entity import MULTIPLIER_FLAG
 
 from cuwo.constants import HOSTILE_FLAG
 from cuwo.constants import FRIENDLY_PLAYER_TYPE
+from cuwo.constants import FRIENDLY_TYPE
+from cuwo.constants import HOSTILE_TYPE
+from cuwo.constants import FULL_MASK
 
 
 from cuwo.packet import EntityUpdate
@@ -45,32 +48,141 @@ from cuwo.packet import HIT_NORMAL
 from cuwo.vector import Vector3
 
 
+from .constants import RELATION_FRIENDLY_PLAYER
+from .constants import RELATION_FRIENDLY
+from .constants import RELATION_FRIENDLY_NAME
+from .constants import RELATION_HOSTILE_PLAYER
+from .constants import RELATION_HOSTILE
+from .constants import RELATION_NEUTRAL
+from .constants import RELATION_TARGET
+
+
+FRIENDLY_TYPE_NAME = 3
+FRIENDLY_TYPE_2 = 4
+FRIENDLY_TYPE_3 = 5
+TARGET_TYPE = 6
+# Everything larger than 6 seems to be same as FRIENDLY_TYPE
+
+
+RELATION_HOSTILE_TYPE_MAPPING = {
+    RELATION_FRIENDLY_PLAYER : FRIENDLY_PLAYER_TYPE,
+    RELATION_FRIENDLY : FRIENDLY_TYPE,
+    RELATION_FRIENDLY_NAME : FRIENDLY_TYPE_NAME,
+    RELATION_HOSTILE_PLAYER : FRIENDLY_PLAYER_TYPE,
+    RELATION_HOSTILE : HOSTILE_TYPE,
+    RELATION_NEUTRAL : FRIENDLY_TYPE,
+    RELATION_TARGET : TARGET_TYPE,
+}
+
+
+NATIVE_SETTING_MAPPING = {
+    FRIENDLY_PLAYER_TYPE : {
+        FRIENDLY_PLAYER_TYPE : RELATION_FRIENDLY_PLAYER,
+        FRIENDLY_TYPE : RELATION_FRIENDLY,
+        HOSTILE_TYPE : RELATION_HOSTILE,
+
+        FRIENDLY_TYPE_NAME : RELATION_FRIENDLY_NAME,
+        FRIENDLY_TYPE_2 : RELATION_FRIENDLY,
+        FRIENDLY_TYPE_3 : RELATION_FRIENDLY,
+        TARGET_TYPE : RELATION_TARGET,
+    },
+    
+    FRIENDLY_TYPE : {
+        FRIENDLY_PLAYER_TYPE : RELATION_FRIENDLY_PLAYER,
+        FRIENDLY_TYPE : RELATION_FRIENDLY,
+        HOSTILE_TYPE : RELATION_HOSTILE,
+
+        FRIENDLY_TYPE_NAME : RELATION_FRIENDLY_NAME,
+        FRIENDLY_TYPE_2 : RELATION_FRIENDLY,
+        FRIENDLY_TYPE_3 : RELATION_FRIENDLY,
+        TARGET_TYPE : RELATION_TARGET,
+    },
+    
+    HOSTILE_TYPE : {
+        FRIENDLY_PLAYER_TYPE : RELATION_HOSTILE_PLAYER,
+        FRIENDLY_TYPE : RELATION_HOSTILE,
+        HOSTILE_TYPE : RELATION_FRIENDLY,
+
+        FRIENDLY_TYPE_NAME : RELATION_HOSTILE,
+        FRIENDLY_TYPE_2 : RELATION_HOSTILE,
+        FRIENDLY_TYPE_3 : RELATION_HOSTILE,
+        TARGET_TYPE : RELATION_TARGET,
+    },
+
+    FRIENDLY_TYPE_NAME : {
+        FRIENDLY_PLAYER_TYPE : RELATION_FRIENDLY_PLAYER,
+        FRIENDLY_TYPE : RELATION_FRIENDLY,
+        HOSTILE_TYPE : RELATION_HOSTILE,
+
+        FRIENDLY_TYPE_NAME : RELATION_FRIENDLY_NAME,
+        FRIENDLY_TYPE_2 : RELATION_FRIENDLY,
+        FRIENDLY_TYPE_3 : RELATION_FRIENDLY,
+        TARGET_TYPE : RELATION_TARGET,
+    },
+    
+    FRIENDLY_TYPE_2 : {
+        FRIENDLY_PLAYER_TYPE : RELATION_FRIENDLY_PLAYER,
+        FRIENDLY_TYPE : RELATION_FRIENDLY,
+        HOSTILE_TYPE : RELATION_HOSTILE,
+
+        FRIENDLY_TYPE_NAME : RELATION_FRIENDLY_NAME,
+        FRIENDLY_TYPE_2 : RELATION_FRIENDLY,
+        FRIENDLY_TYPE_3 : RELATION_FRIENDLY,
+        TARGET_TYPE : RELATION_TARGET,
+    },
+
+    FRIENDLY_TYPE_3 : {
+        FRIENDLY_PLAYER_TYPE : RELATION_FRIENDLY_PLAYER,
+        FRIENDLY_TYPE : RELATION_FRIENDLY,
+        HOSTILE_TYPE : RELATION_HOSTILE,
+
+        FRIENDLY_TYPE_NAME : RELATION_FRIENDLY_NAME,
+        FRIENDLY_TYPE_2 : RELATION_FRIENDLY,
+        FRIENDLY_TYPE_3 : RELATION_FRIENDLY,
+        TARGET_TYPE : RELATION_TARGET,
+    },
+
+    TARGET_TYPE : {
+        FRIENDLY_PLAYER_TYPE : RELATION_FRIENDLY_PLAYER,
+        FRIENDLY_TYPE : RELATION_FRIENDLY,
+        HOSTILE_TYPE : RELATION_HOSTILE,
+
+        FRIENDLY_TYPE_NAME : RELATION_FRIENDLY_NAME,
+        FRIENDLY_TYPE_2 : RELATION_FRIENDLY,
+        FRIENDLY_TYPE_3 : RELATION_FRIENDLY,
+        TARGET_TYPE : RELATION_TARGET,
+    },
+}
+
+
 MASK_HOSTILITY_SETTING = HOSTILE_FLAG | FLAGS_FLAG | MULTIPLIER_FLAG | PACKET_HOSTILE_FLAG
 
 
-# TODO: Make init call for other entities than players
 class EntityExtension:
     """Class representing an extension for the standard entity class."""
-    def __init__(self, entity, manager):
+    def __init__(self, entity, server):
         """Creates a new EntityExtension.
         
         Keyword arguments:
         entity -- The underlying cuwo entity
-        manager -- CuBolt entity manager
         
         """
         self._entity = entity
-        self._max_hp_multiplier = 100
-        self.__joined = False
-        self.__manager = manager
-        self.__manager._register_entity(self)
+        self.__server = server
+        self._max_hp_multiplier = 1
+        self.__initialized = False
+        # Non standard hostilities are saved here in form: <entity id:relation> 
+        self.__relation_to = {}
+        self.__entity_update_packet = EntityUpdate()
     
-    # TODO: also call if non player entity is initialized
-    def init(self):
-        """Initializes this entity."""
-        self._max_hp_multiplier = self._entity.max_hp_multiplier
+    def __init(self):
+        """Initializes this entity. Only called if this entity is a player."""
+        self._native_hostile_type = self._entity.hostile_type
+        self._native_max_hp_multiplier = self._entity.max_hp_multiplier
+        # perform complete update, this is the initial data transfer
+        self._entity.mask = FULL_MASK
+        self.__initialized = True
         
-    # TODO: also call if non player entity is updated
     def on_entity_update(self, event):
         """Handles an entity update event.
         
@@ -78,21 +190,153 @@ class EntityExtension:
         event -- Event arguments
         
         """
-        if not self.__joined:
-            self.__joined = True
-            self._entity.mask |= MASK_HOSTILITY_SETTING
-            self.__manager._update_others(self._entity)
+        if not self.__initialized:
+            self.__init()
         
+        # If client send an multiplier update, check if the 
+        # max_hp_multiplayer has been updated. If so, there is
+        # a new native max_hp_multiplier and we need to re-send
+        # the calculated one.
         max_hp_multiplier = self._entity.max_hp_multiplier
         if (event.mask & MULTIPLIER_FLAG) != 0 and \
-            max_hp_multiplier != _self._max_hp_multiplier:
-            self._max_hp_multiplier = max_hp_multiplier
+            max_hp_multiplier != self._native_max_hp_multiplier:
+            self._native_max_hp_multiplier = max_hp_multiplier
             self.entity.mask |= MULTIPLIER_FLAG
         
-    # TODO: also call if non player entity is updated
+    # TODO: also call if non player entity is updated, currently there
+    # is no call for NPCs
     def on_flags_update(self, event):
+        # Client doesn't accept the hostile mask in some cases.
+        # To be sure that everything runs smoothly it is necessary
+        # to send the hostility data again.
+        # TODO: Check neccessarity!
         self._entity.mask |= MASK_HOSTILITY_SETTING
         
+    def get_hostile_type_by_relation(self, relation):
+        """Gets the hostile type for a specified relation.
+        
+        Keyword arguments:
+        relation -- Relation constant.
+        
+        Returns:
+        One of the hostility types from cuwo.constants
+        
+        """
+        return RELATION_HOSTILE_TYPE_MAPPING[relation]
+        
+    def get_mask_extension_by_relation(self, relation):
+        """Gets the mask for a specified relation.
+        
+        Keyword arguments:
+        relation -- Relation constant.
+        
+        Returns:
+        The flag extension for the specified relation.
+        
+        """
+        if relation > RELATION_FRIENDLY:
+            # TODO: Correct flag?
+            return PACKET_HOSTILE_FLAG
+        else:
+            return 0
+    
+    def get_max_hp_multiplier_by_relation(self, relation):
+        """Gets the max_hp_multiplier to use for an entity that shall
+        have the specified relation.
+        
+        Keyword arguments:
+        relation -- Relation to display.
+        
+        Returns:
+        The calculated max_hp_multiplier.
+        
+        """
+        if not self.__initialized:
+            return 1
+        else:
+            native_hostile_type = self._native_hostile_type
+            native_max_hp_multiplier = self._native_max_hp_multiplier
+            hos_type = self.get_hostile_type_by_relation(relation)
+            if hos_type == native_hostile_type:
+                return native_max_hp_multiplier
+            elif self.is_npc():
+                if hos_type == FRIENDLY_PLAYER_TYPE:
+                    # NPC and FRIENDlY_PLAYER setting, so it is neccassary to
+                    # adjust the hp multiplier. Reduce it to power_health.
+                    power_health = 2 ** (self._entity.power_base * 0.25)
+                    return (power_health / 2) * native_max_hp_multiplier
+                else:
+                    return native_max_hp_multiplier
+            else:
+                if hos_type != FRIENDLY_PLAYER_TYPE:
+                    # Player and not default setting, so it is neccessary to
+                    # adjust the hp multiplier. Extend it to 2.
+                    power_health = 2 ** (self._entity.power_base * 0.25)
+                    return (2 / power_health) * native_max_hp_multiplier
+                else:
+                    return native_max_hp_multiplier
+    
+    def get_modified_flags(self, relation, flags):
+        """Gets the effective flags for a relation.
+        
+        Keyword arguments:
+        relation -- Relation constant.
+        flags -- The flags to modify.
+        
+        Returns:
+        The modified flags.
+        
+        """
+        if relation >= RELATION_HOSTILE_PLAYER:
+            # hostile
+            return flags | HOSTILE_FLAG
+        else:
+            # friendly
+            return flags & ~HOSTILE_FLAG
+    
+    def _entity_removed(self, entity):
+        """Removes an entity from the relation mapping when it has been
+        destroyed.
+        
+        Keyword arguments:
+        entity -- The removed CuBolt entity.
+        
+        """
+        if entity._entity.entity_id in self.__relation_to:
+            del self.__relation_to[entity._entity.entity_id]
+    
+    def send(self, players):
+        """Sends this entitys data to the given players.
+        
+        Keyword arguments:
+        players -- A list of players
+        
+        """
+        if self.__initialized:
+            e = self._entity
+            f = e.flags
+            eu = self.__entity_update_packet
+            for player in players:
+                pe = player.entity
+                relation = pe.cubolt_entity.get_relation_to(self._entity)
+                e.hostile_type = self.get_hostile_type_by_relation(relation)
+
+                e.max_hp_multiplier = self.get_max_hp_multiplier_by_relation(
+                    relation)
+                e.mask |= self.get_mask_extension_by_relation(relation)
+                e.flags = self.get_modified_flags(relation, e.flags)
+            
+                eu.set_entity(e, e.entity_id, e.mask)
+                player.send_packet(eu)
+        
+            # Reset entity data to defaults, so all other scripts and server
+            # algorithms are still working the intended way
+            e.hostile_type = self._native_hostile_type
+            e.max_hp_multiplier = self._native_max_hp_multiplier
+            e.mask = 0
+            e.flags = f
+    
+    # Following methods are injected into cuwo's default entity.
     # injected
     def heal(self, amount):
         """Heals this entity.
@@ -114,46 +358,105 @@ class EntityExtension:
         self._entity.damage(0, duration)
         
     # injected
-    def set_hostility_to(self, entity, hostile, hostility):
-        """Sets the hostility of this entity to another and vice
+    def set_relation_to(self, entity, relation):
+        """Sets the relation of this entity to another.
+        
+        Keyword arguments:
+        entity -- cuwo entity to set the hostility to
+        relation -- One of the relation constants
+        
+        """
+        self.set_relation_to_id(entity.entity_id, relation)
+        
+    # injected
+    def set_relation_to_id(self, entity_id, relation):
+        """Sets the relation of this entity to another.
+        
+        Keyword arguments:
+        entity_id -- ID of the entity to set the hostility to
+        relation -- One of the relation constants.
+        
+        """
+        own_id = self._entity.entity_id
+        if entity_id != own_id:
+            self.__relation_to[entity_id] = relation
+            self._entity.mask |= MASK_HOSTILITY_SETTING
+            self.__server.scripts.call('on_relation_changed',
+                entity_from_id=own_id, entity_to_id=entity_id,
+                relation=relation)
+        
+    # injected
+    def set_relation_both(self, entity, relation):
+        """Sets the relation of this entity to another and vice
         versa.
         
         Keyword arguments:
         entity -- cuwo entity to set the hostility to
-        hostile -- True, for hostile, False for friendly
-        hostility -- Hostility mode, see CuBolt constants
+        relation -- One of the relation constants
         
         """
-        m = self.__manager
-        m.set_hostility(self._entity, entity, hostile, hostility)
+        self.set_relation_to(entity, relation)
+        entity.set_relation_to(self._entity, relation)
         
     # injected
-    def set_hostility_to_id(self, entity_id, hostile, hostility):
-        """Sets the hostility of this entity to another and vice
+    def set_relation_both_id(self, entity_id, relation):
+        """Sets the relation of this entity to another and vice
         versa.
         
         Keyword arguments:
         entity_id -- ID of the entity to set the hostility to
-        hostile -- True, for hostile, False for friendly
-        hostility -- Hostility mode, see CuBolt constants
+        relation -- One of the relation constants.
         
         """
-        m = self.__manager
-        id = self._entity.entity_id
-        m.set_hostility_id(id, entity_id, hostile, hostility)
-            
+        entity = self._entity.world.entities[entity_id]
+        self.set_relation_both(entity, relation)
+    
     # injected
-    def set_hostility_to_all(self, hostile, hostility):
-        """Sets the hostility to all entities.
+    def get_relation_to(self, entity):
+        """Gets the relationn to the specified entity.
         
         Keyword arguments:
-        hostile -- True, for hostile, False for friendly
-        hostility -- Hostility mode, see CuBolt constants
+        entity -- Entity to get the relation to
+        
+        Returns:
+        One of the relation constants
         
         """
-        server = self.__manager.server
-        for id, entity in server.world.entities.items():
-            self.set_hostility_to(entity, hostile, hostility)
+        entity_id = entity.entity_id
+        if not self.__initialized or entity_id == self._entity.entity_id:
+            return RELATION_FRIENDLY_PLAYER
+        elif entity_id in self.__relation_to:
+            return self.__relation_to[entity_id]
+        else:
+            # determine from standards
+            settings = NATIVE_SETTING_MAPPING[self._native_hostile_type]
+            ce = entity.cubolt_entity
+            return settings[ce._native_hostile_type]
+        
+    #injected
+    def get_relation_to_id(self, entity_id):
+        entity = self._entity.world[entity_id]
+        return get_relation_to(entity)
+    
+    # injected
+    def is_npc(self):
+        """Checks whether this entity is an NPC entity.
+        
+        Returns:
+        True if this is an NPC entity, otherwise False.
+        
+        """
+        return self._native_hostile_type != FRIENDLY_PLAYER_TYPE
+
+    # injected
+    def is_player(self):
+        """Checks whether this entity is a players entity.
+        
+        Returns:
+        True if this is a players entity, otherwise False.
+        
+        """
+        return self._native_hostile_type == FRIENDLY_PLAYER_TYPE
     
     # injected
     def destroy(self):
@@ -162,222 +465,5 @@ class EntityExtension:
         if not self._entity.static_id: 
             self._entity.world.entity_ids.put_back(self.entity_id) 
 
-        self.__manager._unregister_entity(self)
-        
-        
-class EntityManager:
-    """Entity manager for handling hostilities."""
-    def __init__(self, server):
-        """Creates a new EntityManager.
-        
-        Keyword arguments:
-        server -- Current server instance
-        
-        """
-        self.server = server
-        self.default_hostile = False
-        self.default_hostility = FRIENDLY_PLAYER_TYPE
-        self.__hostilities = {}
-        self.__entity_update_packet = EntityUpdate()
-        
-    def set_hostility(self, entity1, entity2, hostile, hostility):
-        """Sets the hostility behaviour between two entities.
-        
-        Keyword arguments:
-        entity1 -- First cuwo entity
-        entity2 -- Second cuwo entity
-        hostile -- True, if the entities shall be hostile, otherwise
-                   False
-        hostility -- One of the hostility constants (see
-                  cubolt/constants.py)
-        
-        """
-        self.set_hostility_id(entity1.entity_id, entity2.entity_id)
-        
-    def set_hostility_id(self, entity_id_1, entity_id_2, hostile,
-        hostility):
-        """Sets the hostility behaviour between two entities.
-        
-        Keyword arguments:
-        entity_id_1 -- First entity id
-        entity_id_2 -- Second entity id
-        hostile -- True, if the entities shall be hostile, otherwise
-                   False
-        hostility -- One of the hostility constants (see
-                  cubolt/constants.py)
-        
-        """
-        if entity_id_1 != entity_id_2: 
-            set = self.__Set(entity_id_1, entity_id_2)
-            setting = self.__hostilities[set]
-            setting.hostile = hostile
-            setting.hostility = hostility
-            entity1 = self.server.players[entity_id_1].entity
-            entity1.mask |= MASK_HOSTILITY_SETTING
-            entity2 = self.server.players[entity_id_2].entity
-            entity2.mask |= MASK_HOSTILITY_SETTING
-        
-    def set_hostility_all(self, hostile, hostility):
-        """Sets the hostility behaviour between all entities.
-        
-        Keyword arguments:
-        hostile -- True, if the entities shall be hostile, otherwise
-                   False
-        hostility -- One of the hostility constants (see
-                  cubolt/constants.py)
-        
-        """
-        for entity_set in self.__hostilities:
-            setting = self.__hostilities[entity_set]
-            setting.hostile = hostile
-            setting.hostility = hostility
-        for entity in self.server.world.entities.values():
-            entity.mask |= MASK_HOSTILITY_SETTING
-
-    def _register_entity(self, entity):
-        """Registers an entity and does the main initialization work.
-        
-        Keyword arguments:
-        entity -- CuBolt entity to register
-        
-        """
-        for id, e in self.server.world.entities.items():
-            accessor = self.__Set(id, entity._entity.entity_id)
-            setting = self.__HostilitySetting(self.default_hostile,
-                self.default_hostility)
-            self.__hostilities[accessor] = setting
-        
-        if self.default_hostile:
-            entity._entity.flags |= HOSTILE_FLAG
-        entity._entity.hostile_type = self.default_hostility
-        
-    def _unregister_entity(self, entity):
-        """Unregisters an entity.
-        
-        Keyword arguments:
-        entity -- CuBolt entity to unregister
-        
-        """
-        for id, e in self.server.world.entities.items():
-            if id != entity._entity.entity_id:
-                del self.__hostilities[self.__Set(id, entity._entity.entity_id)]
-            
-                
-    def _update_hostility(self, entity):
-        """Updates the hostility of an entity. Called from server in
-        update routine.
-        
-        Keyword arguments:
-        entity -- cuwo entity to update
-        
-        """
-        hos = self.__hostilities
-        for id, e in self.server.world.entities.items():
-            if id == entity.entity_id:
-                setting = self.__HostilitySetting(False,
-                    FRIENDLY_PLAYER_TYPE)
-                self.__update_single_hostility(e, entity, setting)
-            else:
-                h = hos[self.__Set(e.entity_id, entity.entity_id)]
-                self.__update_single_hostility(e, entity, h)
-       
-        self.__clean_up_entity_data(entity)
-        
-    def _update_others(self, entity):
-        """Updates the entity data for all other entities.
-        
-        Keyword arguments:
-        entity -- cuwo entity which data's shall be updated
-        
-        """
-        hos = self.__hostilities
-        for id, e in self.server.world.entities.items():
-            if id != entity.entity_id:
-                h = hos[self.__Set(e.entity_id, entity.entity_id)]
-                self.__update_single_hostility(e, entity, h)
-                self.__clean_up_entity_data(e)
-                
-    def __update_single_hostility(self, receiver, sender, hostility):
-        """Updates the hostility data of an entity for a single player.
-        
-        Keyword arguments:
-        receiver -- Receiver of the entities data (cuwo entity)
-        sender -- Sender thats data shall be transferred (cuwo entity)
-        hostility -- Hostility to send
-        
-        """
-        if hostility.hostile:
-            sender.flags |= HOSTILE_FLAG
-            sender.hostile_type = hostility.hostility
-            if hostility.hostility == FRIENDLY_PLAYER_TYPE:
-                sender.max_hp_multiplier = \
-                    sender.cubolt_entity._max_hp_multiplier
-            else:
-                sender.max_hp_multiplier = \
-                    sender.cubolt_entity._max_hp_multiplier*2.0
-        else:
-            sender.flags &= ~HOSTILE_FLAG
-            sender.hostile_type = FRIENDLY_PLAYER_TYPE
-            sender.max_hp_multiplier = sender.cubolt_entity._max_hp_multiplier
-        
-        entity_update = self.__entity_update_packet
-        mask = sender.mask
-        entity_update.set_entity(sender,
-            sender.entity_id, mask)
-        
-        players = self.server.players
-        if receiver.entity_id in players:
-            receiver_con = self.server.players[receiver.entity_id]
-            receiver_con.send_packet(entity_update)
-    
-    def __clean_up_entity_data(self, entity):
-        """Cleans up the entities data after sending the data.
-        
-        Keyword arguments:
-        entity -- cuwo entity that's data shall be cleaned up
-        
-        """
-        entity.flags |= HOSTILE_FLAG
-        entity.hostile_type = FRIENDLY_PLAYER_TYPE
-        mhm = entity.cubolt_entity._max_hp_multiplier
-        entity.max_hp_multiplier = mhm
-    
-    class __Set:
-        """Private class for storing the hostility settings between
-        entities.
-        
-        """
-        def __init__(self, t1, t2):
-            """Creates a new Set.
-            
-            Keyword arguments:
-            t1 -- First data blob
-            t2 -- Second data blob
-            
-            """
-            self.t1 = t1
-            self.t2 = t2
-            self.__hash = hash(t1) + hash(t2)
-        
-        def __hash__(self):
-            """Returns the calculated hash."""
-            return self.__hash
-        
-        def __eq__(self, other):
-            """Checks if another object is equal to this one."""
-            return (self.t1 == other.t1 and self.t2 == other.t2) or \
-                (self.t1 == other.t2 and self.t2 == other.t1)
-    
-    class __HostilitySetting:
-        """Private class for storing hostility settings."""
-        def __init__(self, hostile, hostility):
-            """Creates a new HostilitySetting.
-            
-            hostile -- True, if the regarding entities are hostile,
-                       otherwise False.
-            hostility -- One of the hostility constants (see
-                  cubolt/constants.py)
-                  
-            """
-            self.hostile = hostile
-            self.hostility = hostility
+        for entity in self._entity.world.entities.values():
+            entity.cubolt_entity._entity_removed(self)

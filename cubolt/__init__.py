@@ -1,6 +1,6 @@
 # The MIT License (MIT)
 #
-# Copyright (c) 2014 Bjoern Lange
+# Copyright (c) 2014-2015 Bjoern Lange
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation
@@ -41,10 +41,6 @@ try:
 except ImportError:
     has_world = False
 
-
-from .entity import EntityManager
-
-
 from .inject import Injector
 
 
@@ -59,15 +55,6 @@ class CuBoltConnectionScript(ConnectionScript):
         
         """
         ConnectionScript.__init__(self, parent, connection)
-        
-    def on_join(self, event):
-        """Handles the on_join event.
-        
-        Keyword arguments:
-        event -- Event parameter
-        
-        """
-        self.entity.cubolt_entity.init()
     
     def on_entity_update(self, event):
         """Handles an entity update event.
@@ -104,8 +91,6 @@ class CuBoltServerScript(ServerScript):
         
         ServerScript.__init__(self, server)
         
-        server.entity_manager = EntityManager(server)
-        
         server.particle_effects = []
         
         self.injector = Injector(server)
@@ -116,6 +101,7 @@ class CuBoltServerScript(ServerScript):
         if not has_world:
             print(('[CB] The world module could not be imported, ' + 
                 'are you using an old cuwo version?'))
+        self.injector.inject_world_modification()
         self.injector.inject_block_methods()
         
         needed = time.time() - begin

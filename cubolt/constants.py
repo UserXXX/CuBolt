@@ -1,6 +1,6 @@
 # The MIT License (MIT)
 #
-# Copyright (c) 2014 Bjoern Lange
+# Copyright (c) 2014-2015 Bjoern Lange
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation
@@ -29,8 +29,22 @@
 
 # Block type constants
 BLOCK_TYPE_EMPTY = 0
+BLOCK_TYPE_SOLID = 1
 BLOCK_TYPE_WATER = 2
-BLOCK_TYPE_WATER2 = 3
+BLOCK_TYPE_FLAT_WATER = 3
 BLOCK_TYPE_GRASS = 4
 BLOCK_TYPE_MOUNTAIN = 6
 BLOCK_TYPE_TREE = 8
+
+
+"""Relation constants (set values different from cuwo hostility values
+to prevent programmers from using these).
+
+"""
+RELATION_FRIENDLY_PLAYER = 10
+RELATION_FRIENDLY = 11
+RELATION_FRIENDLY_NAME = 12
+RELATION_HOSTILE_PLAYER = 13
+RELATION_HOSTILE = 14
+RELATION_NEUTRAL = 15
+RELATION_TARGET = 16
