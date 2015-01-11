@@ -64,15 +64,6 @@ class CuBoltConnectionScript(ConnectionScript):
         
         """
         self.entity.cubolt_entity.on_entity_update(event)
-    
-    def on_flags_update(self, event):
-        """Handles an update of the entity flags.
-        
-        Keyword arguments:
-        event -- Event parameter
-        
-        """
-        self.entity.cubolt_entity.on_flags_update(event)
         
         
 class CuBoltServerScript(ServerScript):

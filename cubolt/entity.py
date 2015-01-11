@@ -203,15 +203,6 @@ class EntityExtension:
             self._native_max_hp_multiplier = max_hp_multiplier
             self.entity.mask |= MULTIPLIER_FLAG
         
-    # TODO: also call if non player entity is updated, currently there
-    # is no call for NPCs
-    def on_flags_update(self, event):
-        # Client doesn't accept the hostile mask in some cases.
-        # To be sure that everything runs smoothly it is necessary
-        # to send the hostility data again.
-        # TODO: Check neccessarity!
-        self._entity.mask |= MASK_HOSTILITY_SETTING
-        
     def get_hostile_type_by_relation(self, relation):
         """Gets the hostile type for a specified relation.
         
@@ -235,7 +226,6 @@ class EntityExtension:
         
         """
         if relation > RELATION_FRIENDLY:
-            # TODO: Correct flag?
             return PACKET_HOSTILE_FLAG
         else:
             return 0
