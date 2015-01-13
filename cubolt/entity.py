@@ -28,11 +28,6 @@
 """Entity handling."""
 
 
-from cuwo.entity import FLAGS_FLAG
-from cuwo.entity import HOSTILE_FLAG as PACKET_HOSTILE_FLAG
-from cuwo.entity import MULTIPLIER_FLAG
-
-
 from cuwo.constants import HOSTILE_FLAG
 from cuwo.constants import FRIENDLY_PLAYER_TYPE
 from cuwo.constants import FRIENDLY_TYPE
@@ -40,9 +35,20 @@ from cuwo.constants import HOSTILE_TYPE
 from cuwo.constants import FULL_MASK
 
 
+from cuwo.entity import FLAGS_FLAG
+from cuwo.entity import HOSTILE_FLAG as PACKET_HOSTILE_FLAG
+from cuwo.entity import MULTIPLIER_FLAG
+from cuwo.entity import POS_FLAG
+
+
 from cuwo.packet import EntityUpdate
 from cuwo.packet import HitPacket
 from cuwo.packet import HIT_NORMAL
+
+
+from cuwo.static import StaticEntityPacket
+from cuwo.static import StaticEntityHeader
+from cuwo.static import ORIENT_SOUTH
 
 
 from cuwo.vector import Vector3
@@ -448,6 +454,58 @@ class EntityExtension:
         """
         return self._native_hostile_type == FRIENDLY_PLAYER_TYPE
     
+    # injected
+    def teleport(self, location):
+        """Teleports this entity to the desired location. It may take
+        some time to set the actual pos of the entity in case this is a
+        player's entity.
+        
+        Keyword arguments:
+        location -- Location to port the entity to
+
+        """
+        if self.is_player():
+            def create_teleport_packet(pos, chunk_pos, user_id):
+                packet = StaticEntityPacket()
+                header = StaticEntityHeader()
+                packet.header = header
+                packet.chunk_x = chunk_pos[0]
+                packet.chunk_y = chunk_pos[1]
+                packet.entity_id = 0
+                header.entity_type = 18 # 'Bench' see strings.py
+                header.size = Vector3(0, 0, 0)
+                header.closed = True
+                header.orientation = ORIENT_SOUTH
+                header.pos = pos
+                header.time_offset = 0
+                header.something8 = 0
+                header.user_id = user_id
+                return packet
+            
+            entity = self._entity
+            update_packet = self.__server.update_packet
+            player = self.__server.players[entity.entity_id]
+            
+            # Make the player sit down on an imaginary bench, this moves him
+            chunk = player.chunk
+            pos = location
+            packet = create_teleport_packet(pos, chunk.pos, entity.entity_id)
+            update_packet.static_entities.append(packet)
+
+            # Make him stand up again
+            def send_reset_packet():
+                if chunk.static_entities:
+                    chunk.static_entities[0].update()
+                else:
+                    packet = create_teleport_packet(pos, chunk.pos, 0)
+                    update_packet.static_entities.append(packet)
+
+            cubolt_script = self.__server.scripts.cubolt
+            cubolt_script.loop.call_later(0.1, send_reset_packet)
+        else:
+            self._entity.pos = location
+            self._entity.mask |= POS_FLAG
+
     # injected
     def destroy(self):
         """Destroys this entity."""

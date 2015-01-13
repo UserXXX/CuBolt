@@ -149,6 +149,7 @@ class Injector(object):
         entity.set_relation_to_id = ce.set_relation_to_id
         entity.set_relation_both = ce.set_relation_both
         entity.set_relation_both_id = ce.set_relation_both_id
+        entity.teleport = ce.teleport
         entity.destroy = ce.destroy
         entity.is_npc = ce.is_npc
         entity.is_player = ce.is_player
