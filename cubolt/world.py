@@ -42,6 +42,8 @@ from .constants import BLOCK_TYPE_MOUNTAIN
 
 
 class CuBoltChunk:
+    data = None
+
     def __init__(self, world, pos):
         self.world = world
         self.pos = pos

@@ -165,6 +165,9 @@ MASK_HOSTILITY_SETTING = HOSTILE_FLAG | FLAGS_FLAG | MULTIPLIER_FLAG | PACKET_HO
 
 
 class EntityExtension:
+    # Static ids used for porting players, maps chunks to ids
+    teleport_ids = {}
+
     """Class representing an extension for the standard entity class."""
     def __init__(self, entity, server):
         """Creates a new EntityExtension.
@@ -465,13 +468,28 @@ class EntityExtension:
 
         """
         if self.is_player():
+            entity = self._entity
+            update_packet = self.__server.update_packet
+            player = self.__server.players[entity.entity_id]
+            chunk = player.chunk
+            pos = location
+
+            tp_ids = EntityExtension.teleport_ids
+            id = 0
+            if chunk in tp_ids:
+                id = tp_ids[chunk]
+                tp_ids[chunk] = id + 1
+            else:
+                tp_ids[chunk] = 1
+            
+            
             def create_teleport_packet(pos, chunk_pos, user_id):
                 packet = StaticEntityPacket()
                 header = StaticEntityHeader()
                 packet.header = header
                 packet.chunk_x = chunk_pos[0]
                 packet.chunk_y = chunk_pos[1]
-                packet.entity_id = 0
+                packet.entity_id = id
                 header.entity_type = 18 # 'Bench' see strings.py
                 header.size = Vector3(0, 0, 0)
                 header.closed = True
@@ -482,23 +500,19 @@ class EntityExtension:
                 header.user_id = user_id
                 return packet
             
-            entity = self._entity
-            update_packet = self.__server.update_packet
-            player = self.__server.players[entity.entity_id]
             
             # Make the player sit down on an imaginary bench, this moves him
-            chunk = player.chunk
-            pos = location
             packet = create_teleport_packet(pos, chunk.pos, entity.entity_id)
             update_packet.static_entities.append(packet)
 
             # Make him stand up again
             def send_reset_packet():
-                if chunk.static_entities:
-                    chunk.static_entities[0].update()
+                if chunk.static_entities and id in chunk.static_entities:
+                    chunk.static_entities[id].update()
                 else:
                     packet = create_teleport_packet(pos, chunk.pos, 0)
                     update_packet.static_entities.append(packet)
+                tp_ids[chunk] = tp_ids[chunk] - 1
 
             cubolt_script = self.__server.scripts.cubolt
             cubolt_script.loop.call_later(0.1, send_reset_packet)
