@@ -3,18 +3,19 @@ CuBolt
 
 ### A cuwo plugin API
 
-CuBold is a plugin API for the Cube World server cuwo extending it's features for plugin developers to make the usage of some features easier and more performant.
+CuBolt is a plugin API for the Cube World server cuwo extending it's features for plugin developers to make the usage of some features easier and more performant.
 
 ### Features
 
 Currently CuBolt has the following features:
 - Extended entity management
 - Hostility management for entities
+- world editing features such as setting blocks
 
 ### Important notes
 
 Be aware:
-In order to achieve the best possible performance, CuBold injects some code into cuwo. Currently only the update routine is replaced, this should not break other plugins but it may as unusual things happen sometimes.
+In order to achieve the best possible performance, CuBold injects some code into cuwo. This may break some scripts. A list of things that will cause problems can be found [here](https://github.com/UserXXX/CuBolt/wiki/Notes-for-developers).
 
 ### Installation
 
@@ -34,5 +35,5 @@ scripts = ['log', 'cubold', # other scripts following<br>
 
 ### Usage
 
-CuBold represents an programming interface that makes some things much easier. All you need can be found on this picture:
+CuBolt represents an programming interface that makes some things much easier. All you need can be found on this picture:
 ![CuBold UML diagram](https://dl.dropboxusercontent.com/u/79973663/CuBolt/CuBolt%20API.png "CuBold UML diagram")
