@@ -30,24 +30,16 @@
 
 import asyncio
 
-
 from cuwo.loop import LoopingCall
-
-
 from cuwo.packet import CurrentTime
-from cuwo.packet import Packet4Struct1 as BlockDeltaUpdate
 from cuwo.packet import UpdateFinished
-
-
+from cuwo.vector import Vector2
 from cuwo.vector import Vector3
-
 
 from .entity import EntityExtension
 from .model import CubeModel
 from .particle import ParticleEffect
 from .world import CuBoltChunk
-from .world import CBBlock
-from .world import CBChunk
 
 
 class Injector(object):
@@ -60,7 +52,6 @@ class Injector(object):
         
         """
         self.server = server
-        self.__changed_blocks = set()
 
     def inject_update(self):
         """Injects CuBolts update routine into cuwo."""
@@ -75,19 +66,6 @@ class Injector(object):
         s = self.server
 
         s.scripts.call('update')
-            
-        # block updates
-        for block in self.__changed_blocks:
-            struct = BlockDeltaUpdate()
-            struct.block_pos = block.pos # absolute pos
-            struct.color_red = block.r
-            struct.color_green = block.g
-            struct.color_blue = block.b
-            struct.block_type = block.a
-            struct.something8 = 0
-            s.update_packet.items_1.append(struct)
-        
-        self.__changed_blocks = set()
         
         # entity updates
         # The client doesn't allow friendly display and hostile
@@ -105,7 +83,14 @@ class Injector(object):
         update_packet = s.update_packet
         for chunk in s.updated_chunks:
             chunk.on_update(update_packet)
-        s.broadcast_packet(update_packet)
+
+        # Send the update packet for this frame. For performance
+        # reasons the packets are different for each client
+        # (regarding particles and block updates).
+        cubolt = s.scripts.cubolt
+        for connection in cubolt.children:
+            connection.send_update_packet(update_packet)
+
         update_packet.reset()
 
         # reset drop times
@@ -154,37 +139,48 @@ class Injector(object):
         entity.is_npc = ce.is_npc
         entity.is_player = ce.is_player
     
-    # unused begin
-    def inject_block_methods(self):
-        self.server.block_changed = self.block_changed
-        self.server.get_block = self.get_block
-        self.server.get_cb_chunk = self.get_chunk
-        
-    def block_changed(self, block):
-        self.__changed_blocks.append(block)
-        
-    def get_block(self, x, y, z):
-        chunk = self.server.get_chunk(x / 256, y / 256)
-        if hasattr(chunk, 'data'):
-            return CBBlock(self.server, chunk.data,
-                Vector3(x % 256, y % 256, z))
-        else:
-            return None
-        
-    def get_chunk(self, x, y):
-        chunk = self.server.get_chunk(x, y)
-        if hasattr(chunk, 'data'):
-            return CBChunk(self.server, x, y,
-                chunk.data)
-        else:
-            return None
-    #unused end
-    
     def inject_world_modification(self):
         s = self.server
         w = s.world
         w.server = s
         w.chunk_class = CuBoltChunk
+        w.get_block = self.get_block
+        w.set_block = self.set_block
+
+    def get_block(self, position):
+        """Gets a block.
+        
+        Keyword arguments:
+        position -- Absolute position in block coordinates.
+
+        Returns:
+        Tuple of form (color tuple, block type) or None if the chunk
+        has not been generated yet.
+
+        """
+        chunk_x = int(position.x) // 256
+        chunk_y = int(position.y) // 256
+        w = self.server.world
+        chunk = w.get_chunk(Vector2(chunk_x, chunk_y))
+        x = position.x - chunk_x * 256
+        y = position.y - chunk_y * 256
+        return chunk.get_block(Vector3(x, y, position.z))
+
+    def set_block(self, position, block_tuple):
+        """Sets a block.
+        
+        Keyword arguments:
+        position -- Absolute position in block coordinates.
+        block_tuple -- Tuple of form (color tuple, block type).
+        
+        """
+        chunk_x = int(position.x) // 256
+        chunk_y = int(position.y) // 256
+        w = self.server.world
+        chunk = w.get_chunk(Vector2(chunk_x, chunk_y))
+        x = position.x - chunk_x * 256
+        y = position.y - chunk_y * 256
+        chunk.set_block(Vector3(x, y, position.z), block_tuple)
         
     def inject_factory(self):
         """Injects CuBolts factory into the server."""

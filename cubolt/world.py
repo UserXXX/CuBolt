@@ -30,15 +30,20 @@
 
 import sqlite3
 import os.path
-
+import sys
 
 from cuwo.constants import FULL_MASK
+from cuwo.packet import ChunkItems
+from cuwo.packet import Packet4Struct1 as BlockDeltaUpdate
 from cuwo.types import AttributeDict
+from cuwo.vector import Vector2
 from cuwo.vector import Vector3
 
-
-from .constants import BLOCK_TYPE_EMPTY
-from .constants import BLOCK_TYPE_MOUNTAIN
+try:
+    from cuwo.tgen import BlockType
+    block_types_available = True
+except ImportError:
+    block_types_available = False
 
 
 class CuBoltChunk:
@@ -49,6 +54,7 @@ class CuBoltChunk:
         self.pos = pos
         self.items = []
         self.static_entities = {}
+        self.block_cache = []
 
         if not world.use_tgen:
             return
@@ -74,14 +80,28 @@ class CuBoltChunk:
                 data.set_entity(entity)
                 
                 # inserted
-                entity.cubolt_entity.on_entity_update(AttributeDict(mask=FULL_MASK))
+                cb = entity.cubolt_entity
+                cb.on_entity_update(AttributeDict(mask=FULL_MASK))
                 # inserted end
                 
                 entity.reset()
 
+        # inserted
+        # if the server already supports block types we can use copy on write
+        # to make terrain editations much easier
+        if block_types_available:
+            self.data = CuBoltTGenChunk(self.world.server, self.data)
+        # inserted end
+
         self.update()
         
         # inserted
+        # do the cached calls that have been made before the chunk
+        # was loaded
+        for (pos, bt) in self.block_cache:
+            self.set_block(pos, bt)
+        self.block_cache = None
+
         self.world.server.scripts.call('on_chunk_load', chunk=self)
         # inserted end
 
@@ -97,128 +117,299 @@ class CuBoltChunk:
     def get_entity(self, entity_id):
         return self.static_entities[entity_id]
 
+    def update(self):
+        self.world.server.updated_chunks.add(self)
+
+    def on_update(self, update_packet):
+        item_list = ChunkItems()
+        item_list.chunk_x, item_list.chunk_y = self.pos
+        item_list.items = self.items
+        update_packet.chunk_items.append(item_list)
+
     def on_post_update(self):
         for item in self.items:
             item.drop_time = 0
 
-    def update(self):
-        pass
+    def get_block(self, position):
+        """Gets a block from this chunk.
+        
+        Keyword arguments:
+        position -- Position vector. X, Y, Z coordinate from 0-255.
+
+        Returns:
+        Tuple of form (color tuple, block type) or None if the chunk
+        has not yet been generated.
+
+        """
+        if self.data is None:
+            return None
+        if block_types_available:
+            return self.data.get_block(position)
+        else:
+            return None
+
+    def set_block(self, position, block_tuple):
+        """Sets a block in this chunk.
+        
+        Keyword arguments:
+        position -- Position vector. X, Y, Z coordinate form 0-255.
+        block_tuple -- Tuple of form (color tuple, block type).
+
+        """
+        if self.data is None: # Need to cache calls and do them later
+            self.block_cache.append((position, block_tuple))
+        else:
+            if block_types_available:
+                self.data.set_block(position, block_tuple)
+
+    def _append_deltas(self, deltas):
+        """Appends the deltas for this chunk. Access to data is safe
+        here.
+        
+        Keyword arguments:
+        deltas -- List to append to.
+
+        """
+        self.data._append_deltas(deltas)
 
 
 class CuBoltTGenChunk:
-    def __init__(self, tgenChunk):
-        self.items = tgenChunk.items
-        self.static_entities = tgenChunk.entities
-        self.dynamic_entities = tgenChunk.dynamic_entities
-        self.x = tgenChunk.x
-        self.y = tgenChunk.y
-        
-        
-class CuBoltChunkData:
-    def __init__(self, tgenChunkData):
-        pass
-        
-# unused from here on
-        
-class ChunkEntryHelper:
-    def __init__(self):
-        self.r = 0
-        self.g = 0
-        self.b = 0
-        self.a = 0
+    def __init__(self, server, tgen_chunk):
+        self.__server = server
+        self.__tgen_chunk = tgen_chunk
+        self.items = tgen_chunk.items
+        self.static_entities = tgen_chunk.static_entities
+        self.dynamic_entities = tgen_chunk.dynamic_entities
+        self.x = tgen_chunk.x
+        self.y = tgen_chunk.y
 
+        self.__proxies = {}
 
-class CBChunk:
-    def __init__(self, server, x, y, chunk):
-        self.server = server
-        self.x = x
-        self.y = y
-        self.chunk = chunk
-        
-    def get_block(self, pos):
-        return CBBlock(self.server, self.chunk.data, pos)
-        
+        self.get_render = tgen_chunk.get_render
 
-class CBBlock:
-    def __init__(self, server, tgen_chunk, rel_pos):
-        self.__ignore_updates = False
-        self.server = server
+    def get_solid(self, x, y, z):
+        if x < 0 or x >= 256 or y < 0 or y >= 256: 
+            return False 
+        data = self[x + y * 256] 
+        if z < data.a: 
+            return True 
+        z -= data.a 
+        if z >= len(data): 
+            return False 
+        return data.get_type(z) != EMPTY_TYPE
 
-        chunk_data = tgen_chunk.__data
-        chunk_xy = chunk_data.items[(chunk_rel_x, chunk_rel_y)]
-        
-        lower_end = min(0, chunk_xy.b) # b not actually used, will always be 0
-        upper_end = chunk_xy.a + chunk_xy.size
-        if self.pos.z < lower_end:
-            self.__entry = ChunkEntryHelper()
-            self.__ignore_updates = True
-            self.r = 0
-            self.g = 0
-            self.b = 0
-            self.type = BLOCK_TYPE_MOUNTAIN
-        elif self.pos.z > upper_end:
-            self.__entry = ChunkEntryHelper()
-            self.__ignore_updates = True
-            self.r = 0
-            self.g = 0
-            self.b = 0
-            self.type = BLOCK_TYPE_EMPTY
-            # place in block list
-            chunk_xy.items[pos.z] = self.__entry
-            chunk_xy.size = pos.z - chunk_xy.a
-        elif self.pos.z < chunk_xy.a:
-            self.__entry = chunk_xy.items[0]
+    def get_neighbor_solid(self, x, y, z): 
+        return (self.get_solid(x - 1, y, z) and 
+                self.get_solid(x + 1, y, z) and 
+                self.get_solid(x, y + 1, z) and 
+                self.get_solid(x, y - 1, z) and 
+                self.get_solid(x, y, z + 1) and 
+                self.get_solid(x, y, z - 1)) 
+
+    def get_dict(self): 
+        blocks = {} 
+ 
+        for i in range(256*256): 
+            x = i % 256 
+            y = i / 256 
+            xy = self[x + y * 256] 
+            for z in range(xy.b, (xy.a + len(xy))): 
+                if self.get_neighbor_solid(x, y, z): 
+                    continue
+                if z < xy.a: 
+                    blocks[(x, y, z)] = xy[0] 
+                    continue
+                if xy.get_type(z - xy.a) == EMPTY_TYPE: 
+                    continue
+                blocks[(x, y, z)] = xy[z - xy.a]
+        return blocks
+
+    def get_height(self, x, y):
+        data = self[x + y * 256]
+        return data.height
+
+    def __getitem__(self, index):
+        if index in self.__proxies:
+            return self.__proxies[index]
         else:
-            try:
-                self.__entry = chunk_xy.items[self.pos.z - chunk_xy.a]
-            except:
-                self.__entry = ChunkEntryHelper()
-                self.__ignore_updates = True
-                self.r = 0
-                self.g = 0
-                self.b = 0
-                self.type = BLOCK_TYPE_EMPTY
-                # place in block list
-                chunk_xy.items[pos.z] = self.__entry
+            native_proxy = self.__tgen_chunk[index]
+            server = self.__server
+            x = index % 256
+            y = index / 256
+            cb_proxy = CuBoltXYProxy(server, self, native_proxy, x, y)
+            self.__proxies[index] = cb_proxy
+            return cb_proxy
+
+    def get_column(self, x, y):
+        """Gets a "column" of blocks of this chunk by coordinates.
         
+        Keyword arguments:
+        x -- X chunk coordinate (0-255).
+        y -- Y chunk coordinate (0-255).
+
+        """
+        return self[x + y * 256]
+    
+    def get_block(self, position):
+        """Gets a block from this chunk.
+        
+        Keyword arguments:
+        position -- Position vector. X, Y, Z coordinate from 0-255.
+
+        Returns:
+        Tuple of form (color tuple, block type).
+
+        """
+        p = position
+        x = int(p.x)
+        y = int(p.y)
+        z = int(p.z)
+        proxy = self.get_column(x, y)
+        return proxy.get_block(z)
+
+    def set_block(self, position, block_tuple):
+        """Sets a block in this chunk.
+        
+        Keyword arguments:
+        position -- Position vector. X, Y, Z coordinate form 0-255.
+        block_tuple -- Tuple of form (color tuple, block type).
+
+        """
+        p = position
+        x = int(p.x)
+        y = int(p.y)
+        z = int(p.z)
+        proxy = self.get_column(x, y)
+        proxy.set_block(z, block_tuple)
+
+    def _append_deltas(self, deltas):
+        """Appends the deltas for this chunk.
+        
+        Keyword arguments:
+        deltas -- List to append to.
+
+        """
+        for proxy in self.__proxies.values():
+            proxy._append_deltas(deltas)
+
+
+class CuBoltXYProxy:
+    def __init__(self, server, chunk, proxy, x, y):
+        self.__server = server
+        self.__proxy = proxy
+        self.__x = x + chunk.x * 256
+        self.__y = y + chunk.y * 256
+        self.__chunk_x = chunk.x
+        self.__chunk_y = chunk.y
+        self.__blocks = {}
+        self.height = proxy.a + len(proxy)
+
     @property
-    def r(self):
-        return self.__entry.r
-        
-    @r.setter
-    def r(self, value):
-        self.__entry.r = value
-        if not self.__ignore_updates:
-            self.server.world.block_changed(self)
-        
-    @property
-    def g(self):
-        return self.__entry.g
-        
-    @g.setter
-    def g(self, value):
-        self.__entry.g = value
-        if not self.__ignore_updates:
-            self.server.world.block_changed(self)
-        
+    def a(self):
+        return self.__proxy.a
+
     @property
     def b(self):
-        return self.__entry.b
+        return self.__proxy.b
+
+    def __len__(self):
+        return len(self.__proxy)
+
+    def __getitem__(self, index):
+        abs_index = index + self.__proxy.a
+        if abs_index in self.__blocks:
+            return self.__blocks[abs_index][0]
+        elif index > 0 and index < len(self.__proxy):
+            return self.__proxy[index]
+        elif index < 0:
+            return self[0]
+        else:
+            return (0,0,0) # Empty block
+
+    def get_type(self, index):
+        abs_index = index + self.__proxy.a
+        if abs_index in self.__blocks:
+            return self.__blocks[abs_index][1]
+        elif index > 0 and index < len(self.__proxy):
+            return self.__proxy.get_type(index)
+        elif index < 0:
+            return MOUNTAIN_TYPE
+        else:
+            return EMPTY_TYPE
+
+    def get_block(self, index):
+        """Absolute block access.
         
-    @b.setter
-    def b(self, value):
-        self.__entry.b = value
-        if not self.__ignore_updates:
-            self.server.world.block_changed(self)
+        Keyword arguments:
+        index -- Absolute index to access at. Index recalculation is
+        done internally.
+
+        Returns:
+        A tuple of (block color as 3 tuple, block type).
         
-    @property
-    def type(self):
-        return self.__entry.a & 0x1F
+        """
+        if index in self.__blocks:
+            return self.__blocks[index]
+        else:
+            rel_index = index - self.__proxy.a
+            n_color = self.__proxy[rel_index]
+            n_type = self.__proxy.get_type(rel_index)
+            return (n_color,n_type)
+
+    def set_block(self, index, block_tuple):
+        """Absolute block set.
         
-    @type.setter
-    def type(self, value):
-        value = value & 0x1F # make sure to only use the lowest 5 bits
-        self.__entry.a = self.__entry.a & 0xE0 # delete lowest 5 bits
-        self.__entry.a = self.__entry.a | value # set lowest 5 bits
-        if not self.__ignore_updates:
-            self.server.world.block_changed(self)
+        Keyword arguments:
+        index -- Absolute index to write to.
+        block_tuple -- Tuple of form (block color as 3 tuple,
+            block type).
+
+        """
+        rel_index = index - self.__proxy.a
+        n_color = self.__proxy[rel_index]
+        n_type = self.__proxy.get_type(rel_index)
+        changed = False
+        if block_tuple[0] == n_color and block_tuple[1] == n_type:
+            if index in self.__blocks:
+                del self.__blocks[index]
+                changed = True
+                if index == self.height:
+                    # Search the first non-air block
+                    self.height = self.height - 1
+                    while self.get_block(self.height)[1] == EMPTY_TYPE:
+                        self.height = self.height - 1
+        else:
+            self.__blocks[index] = block_tuple
+            changed = True
+            if index >= self.height:
+                self.height = index + 1
+        
+        if changed:
+            cubolt = self.__server.scripts.cubolt
+            x = self.__chunk_x
+            y = self.__chunk_y
+            w = self.__server.world
+            for connection_script in cubolt.children:
+                if connection_script.is_near(x, y):
+                    c = w.get_chunk(Vector2(x, y))
+                    connection_script.chunks.append(c)
+            
+    def _append_deltas(self, deltas):
+        """Appends the deltas for this chunk.
+        
+        Keyword arguments:
+        deltas -- List to append to.
+
+        """
+        for z in self.__blocks.keys():
+            bdu = BlockDeltaUpdate()
+            # All coordinates are specified absolute in block
+            # coordinates
+            bdu.block_pos = Vector3(self.__x, self.__y, z)
+            block = self.__blocks[z]
+            bdu.color_red = block[0][0]
+            bdu.color_green = block[0][1]
+            bdu.color_blue = block[0][2]
+            bdu.block_type = block[1]
+            bdu.something8 = 0
+            deltas.append(bdu)

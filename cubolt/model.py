@@ -32,10 +32,8 @@ import sqlite3
 import os.path
 import struct
 
-
 from cuwo.bytes import ByteReader
 from cuwo.cub import CubModel
-
 
 try:
     from cuwo.world import World
@@ -43,8 +41,11 @@ try:
 except ImportError:
     has_world = False
 
-
-from .constants import BLOCK_TYPE_MOUNTAIN
+try:
+    from cuwo.tgen import BlockType
+    block_types_available = True
+except ImportError:
+    block_types_available = False
     
 
 MODEL_DATABASE = os.path.join('data', 'data1.db')
@@ -99,7 +100,7 @@ class Model:
             block.r = color[0]
             block.g = color[1]
             block.b = color[2]
-            block.type = BLOCK_TYPE_MOUNTAIN
+            block.type = MOUNTAIN_TYPE
  
  
 class CubeModel(Model):

@@ -27,15 +27,6 @@
 
 """Constants."""
 
-# Block type constants
-BLOCK_TYPE_EMPTY = 0
-BLOCK_TYPE_SOLID = 1
-BLOCK_TYPE_WATER = 2
-BLOCK_TYPE_FLAT_WATER = 3
-BLOCK_TYPE_GRASS = 4
-BLOCK_TYPE_MOUNTAIN = 6
-BLOCK_TYPE_TREE = 8
-
 
 """Relation constants (set values different from cuwo hostility values
 to prevent programmers from using these).

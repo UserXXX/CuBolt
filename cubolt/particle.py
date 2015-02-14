@@ -30,12 +30,10 @@
 
 import time
 
-
+from cuwo.constants import BLOCK_SCALE
+from cuwo.constants import SOLID_PARTICLE
 from cuwo.packet import ParticleData
 from cuwo.vector import Vector3
-
-
-from cuwo.constants import SOLID_PARTICLE
 
 
 class ParticleEffect:
@@ -75,4 +73,9 @@ class ParticleEffect:
                 
     def fire(self):
         """Fires the particle effect."""
-        self.server.update_packet.particles.append(self.data)
+        cubolt = self.server.scripts.cubolt
+        px = self.data.pos.x / (BLOCK_SCALE * 256)
+        py = self.data.pos.y / (BLOCK_SCALE * 256)
+        for connection_script in cubolt.children:
+            if connection_script.is_near(px, py):
+                connection_script.particles.append(self.data)

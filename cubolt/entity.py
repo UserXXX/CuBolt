@@ -33,26 +33,17 @@ from cuwo.constants import FRIENDLY_PLAYER_TYPE
 from cuwo.constants import FRIENDLY_TYPE
 from cuwo.constants import HOSTILE_TYPE
 from cuwo.constants import FULL_MASK
-
-
 from cuwo.entity import FLAGS_FLAG
 from cuwo.entity import HOSTILE_FLAG as PACKET_HOSTILE_FLAG
 from cuwo.entity import MULTIPLIER_FLAG
 from cuwo.entity import POS_FLAG
-
-
 from cuwo.packet import EntityUpdate
 from cuwo.packet import HitPacket
 from cuwo.packet import HIT_NORMAL
-
-
 from cuwo.static import StaticEntityPacket
 from cuwo.static import StaticEntityHeader
 from cuwo.static import ORIENT_SOUTH
-
-
 from cuwo.vector import Vector3
-
 
 from .constants import RELATION_FRIENDLY_PLAYER
 from .constants import RELATION_FRIENDLY
