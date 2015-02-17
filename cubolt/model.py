@@ -34,12 +34,8 @@ import struct
 
 from cuwo.bytes import ByteReader
 from cuwo.cub import CubModel
-
-try:
-    from cuwo.world import World
-    has_world = True
-except ImportError:
-    has_world = False
+from cuwo.world import World
+from cuwo.vector import Vector3
 
 try:
     from cuwo.tgen import BlockType
@@ -52,11 +48,13 @@ MODEL_DATABASE = os.path.join('data', 'data1.db')
 
 
 OFFSET_LOOKUP_TABLE = [0x1092, 0x254F, 0x348, 0x14B40, 0x241A, 0x2676,
-    0x7F, 0x9, 0x250B, 0x18A, 0x7B, 0x12E2, 0x7EBC, 0x5F23, 0x981,
-    0x11, 0x85BA, 0x0A566, 0x1093, 0x0E, 0x2D266, 0x7C3, 0x0C16,
-    0x76D, 0x15D41, 0x12CD, 0x25, 0x8F, 0x0DA2, 0x4C1B, 0x53F, 0x1B0,
-    0x14AFC, 0x23E0, 0x258C, 0x4D1, 0x0D6A, 0x72F, 0x0BA8, 0x7C9,
-    0x0BA8, 0x131F, 0x0C75C7, 0x0D]
+                       0x7F, 0x9, 0x250B, 0x18A, 0x7B, 0x12E2, 0x7EBC,
+                       0x5F23, 0x981, 0x11, 0x85BA, 0x0A566, 0x1093,
+                       0x0E, 0x2D266, 0x7C3, 0x0C16, 0x76D, 0x15D41,
+                       0x12CD, 0x25, 0x8F, 0x0DA2, 0x4C1B, 0x53F,
+                       0x1B0, 0x14AFC, 0x23E0, 0x258C, 0x4D1, 0x0D6A,
+                       0x72F, 0x0BA8, 0x7C9, 0x0BA8, 0x131F, 0x0C75C7,
+                       0x0D]
 
     
 class ByteArrayReader:
@@ -65,46 +63,62 @@ class ByteArrayReader:
         self.pos = 0
     
     def read_uint32(self):
-        result = self.data[self.pos] << 24
-        self.pos = self.pos + 1
-        result = result | self.data[self.pos] << 16
+        result = self.data[self.pos]
         self.pos = self.pos + 1
         result = result | self.data[self.pos] << 8
         self.pos = self.pos + 1
-        result = result | self.data[self.pos]
+        result = result | self.data[self.pos] << 16
+        self.pos = self.pos + 1
+        result = result | self.data[self.pos] << 24
         self.pos = self.pos + 1
         return result
         
-    def read_uint_8(self):
+    def read_uint8(self):
         self.pos = self.pos + 1
         return self.data[self.pos - 1]
     
 
 class Model:
+    """Base class for all loadable models."""
     def __init__(self, server):
+        """Creates a new model.
+        
+        Keyword arguments:
+        server -- Server instance.
+
+        """
         self.server = server
 
-    def place_in_world(self, lower_x, lower_y, lower_z):
-        if not has_world or not self.server.config.base.use_world:
-            raise NameError(('[CB] The world module could not be' +
-                ' loaded.'))
-        
-        server = self.server
+    def place_in_world(self, lower_x, lower_y, lower_z, type):
+        """Places the model in the world.
+
+        Keyword arguments:
+        lower_x -- X coordinate where to start placing the blocks.
+        lower_y -- Y coordinate where to start placing the blocks.
+        lower_z -- Z coordinate where to start placing the blocks.
+
+        """
+        w = self.server.world
         for pos in self.data.keys():
             x = pos[0] + lower_x
             y = pos[1] + lower_y
             z = pos[2] + lower_z
-            block = server.get_block(x, y, z)
-            print('Got block!')
             color = self.data[pos]
-            block.r = color[0]
-            block.g = color[1]
-            block.b = color[2]
-            block.type = MOUNTAIN_TYPE
+            w.set_block(Vector3(x, y, z), (color,type))
  
  
 class CubeModel(Model):
+    """Model class for Cube Worlds default Models (*.cub files)."""
     def __init__(self, server, filename, from_database=False):
+        """Creates a new model.
+        
+        Keyword arguments:
+        server -- Server instance.
+        filename -- Name of the file to load.
+        from_database -- True, to load from the default data1.db file,
+            False to load the file from disk.
+
+        """
         Model.__init__(self, server)
         if from_database:
             db_connection = sqlite3.connect(MODEL_DATABASE)
@@ -112,7 +126,7 @@ class CubeModel(Model):
             cursor.execute('SELECT * FROM blobs WHERE key=?',
                 [filename])
             row = cursor.fetchone()
-            model_data = row[1]
+            model_data = bytearray(row[1])
             model_data = self.__descramble(model_data)
             model = CubModel(ByteArrayReader(model_data))
             self.size_x = model.x_size
@@ -127,24 +141,16 @@ class CubeModel(Model):
             self.data = model.blocks
             
     def __descramble(self, model_data):
-        ret = []
-        for m in model_data:
-            ret.append(m)
-    
-        currOff = len(ret) - 1
-        while currOff >= 0:
-            offset = (currOff + OFFSET_LOOKUP_TABLE[currOff % 44]) % \
-                len(ret)
-                
-            temp = ret[currOff]
-            ret[currOff] = ret[offset]
-            ret[offset] = temp
-            
-            currOff = currOff - 1
+        data_len = len(model_data)
         
-        i = 0
-        while i < len(ret):
-            ret[i] = -1 - ret[i];
-            i = i + 1
+        for i in range(data_len - 1, -1, -1):
+            offset = (i + OFFSET_LOOKUP_TABLE[i % 44]) % data_len
+
+            temp = model_data[i]
+            model_data[i] = model_data[offset]
+            model_data[offset] = temp
+
+        for i in range(0, data_len):
+            model_data[i] = ~(model_data[i]) + 256
             
-        return ret
+        return model_data
