@@ -42,12 +42,15 @@ except ImportError:
     has_world = False
     
 try:
-    from cuwo.tgen import BlockType
+    from cuwo.tgen import MOUNTAIN_TYPE
     block_types_available = True
 except ImportError:
     block_types_available = False
 
 from .inject import Injector
+
+
+MAX_BLOCKS_AT_ONCE = 500
 
 
 class CuBoltConnectionScript(ConnectionScript):
@@ -63,6 +66,9 @@ class CuBoltConnectionScript(ConnectionScript):
         ConnectionScript.__init__(self, parent, connection)
         self.particles = []
         self.chunks = []
+        self.static_entities = []
+
+        self.block_deltas = []
         self.__first_pos_update = True
 
     def on_pos_update(self, event):
@@ -74,24 +80,25 @@ class CuBoltConnectionScript(ConnectionScript):
             self.__first_pos_update = False
             self.__chunk_pos = (pos_x, pos_y)
             w = self.server.world
-            for x in range(-1, 2):
-                for y in range(-1, 2):
-                    pos = Vector2(pos_x + x, pos_y + y)
-                    self.chunks.append(w.get_chunk(pos))
+            pos = Vector2(pos_x, pos_y)
+            chunk = w.get_chunk(pos)
+            self.chunks.append(chunk)
+
+            def resend():
+                self.chunks.append(chunk)
+
+            # re-send data after 30 seconds as slower machines may
+            # need some time to generate the chunk
+            self.parent.loop.call_later(30.0, resend)
         else:
             cp = self.__chunk_pos
             if (pos_x,pos_y) != cp:
                 # request chunk data
                 w = self.server.world
-                for x in range(-1, 2):
-                    for y in range(-1, 2):
-                        cx = pos_x + x
-                        cy = pos_y + y
-                        if abs(cx - cp[0]) > 1 or abs(cy - cp[1]) > 1:
-                            pos = Vector2(cx, cy)
-                            chunk = w.get_chunk(pos)
-                            if chunk not in self.chunks:
-                                self.chunks.append(chunk)
+                pos = Vector2(pos_x, pos_y)
+                chunk = w.get_chunk(pos)
+                if chunk not in self.chunks:
+                    self.chunks.append(chunk)
                 self.__chunk_pos = (pos_x,pos_y)
 
     def on_entity_update(self, event):
@@ -111,31 +118,49 @@ class CuBoltConnectionScript(ConnectionScript):
         update_packet -- Update packet to send.
 
         """
-        block_deltas = []
         not_loaded_chunks = []
         for chunk in self.chunks:
             if chunk.data is None:
                 not_loaded_chunks.append(chunk)
             else:
-                chunk._append_deltas(block_deltas)
+                chunk._append_deltas(self.block_deltas)
         self.chunks = not_loaded_chunks
 
         # backup non player specific data
         block_deltas_backup = update_packet.items_1
+        if block_deltas_backup is None:
+            block_deltas_backup = []
         particle_backup = update_packet.particles
-        
-        # generate new data
-        update_packet.items_1 = block_deltas_backup + block_deltas
-        update_packet.particles = particle_backup + self.particles
+        if particle_backup is None:
+            particle_backup = []
+        static_entities_backup = update_packet.static_entities
+        if static_entities_backup is None:
+            static_entities_backup = []
 
+        # generate new data
+        delta_count = len(self.block_deltas)
+        block_deltas = self.block_deltas[0:min(MAX_BLOCKS_AT_ONCE,
+                                               delta_count)]
+        del self.block_deltas[0:min(MAX_BLOCKS_AT_ONCE, delta_count)]
+        block_deltas.extend(block_deltas_backup)
+        update_packet.items_1 = block_deltas
+
+        self.particles.extend(particle_backup)
+        update_packet.particles = self.particles
+
+        self.static_entities.extend(static_entities_backup)
+        update_packet.static_entities = self.static_entities
+            
         # send updated packet
         self.connection.send_packet(update_packet)
 
         # restore backupped data
         update_packet.items_1 = block_deltas_backup
         update_packet.particles = particle_backup
+        update_packet.static_entities = static_entities_backup
 
         self.particles.clear()
+        self.static_entities.clear()
 
     def is_near(self, x, y):
         """Checks whether a client is near a given chunk.
@@ -153,9 +178,11 @@ class CuBoltConnectionScript(ConnectionScript):
             chunk = c.chunk
             if chunk is not None:
                 c_pos = chunk.pos
-                if abs(x - c_pos.x) < 1 and abs(y - c_pos.y) < 1:
+                if abs(x - c_pos.x) < 3 and abs(y - c_pos.y) < 3:
                     return True
-        return False
+                else:
+                    return False
+        return True
         
         
 class CuBoltServerScript(ServerScript):

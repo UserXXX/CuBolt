@@ -156,10 +156,8 @@ MASK_HOSTILITY_SETTING = HOSTILE_FLAG | FLAGS_FLAG | MULTIPLIER_FLAG | PACKET_HO
 
 
 class EntityExtension:
-    # Static ids used for porting players, maps chunks to ids
-    teleport_ids = {}
-
     """Class representing an extension for the standard entity class."""
+
     def __init__(self, entity, server):
         """Creates a new EntityExtension.
         
@@ -181,6 +179,15 @@ class EntityExtension:
         self._native_max_hp_multiplier = self._entity.max_hp_multiplier
         # perform complete update, this is the initial data transfer
         self._entity.mask = FULL_MASK
+        
+        # get connection script for this entity
+        con_scripts = self.__server.scripts.cubolt.children
+        entity = self._entity
+        for script in con_scripts:
+            if script.connection.entity == entity:
+                self.__con_script = script
+                break
+
         self.__initialized = True
         
     def on_entity_update(self, event):
@@ -464,15 +471,6 @@ class EntityExtension:
             player = self.__server.players[entity.entity_id]
             chunk = player.chunk
             pos = location
-
-            tp_ids = EntityExtension.teleport_ids
-            id = 0
-            if chunk in tp_ids:
-                id = tp_ids[chunk]
-                tp_ids[chunk] = id + 1
-            else:
-                tp_ids[chunk] = 1
-            
             
             def create_teleport_packet(pos, chunk_pos, user_id):
                 packet = StaticEntityPacket()
@@ -480,8 +478,8 @@ class EntityExtension:
                 packet.header = header
                 packet.chunk_x = chunk_pos[0]
                 packet.chunk_y = chunk_pos[1]
-                packet.entity_id = id
-                header.entity_type = 18 # 'Bench' see strings.py
+                packet.entity_id = 0
+                header.set_type('Bench')
                 header.size = Vector3(0, 0, 0)
                 header.closed = True
                 header.orientation = ORIENT_SOUTH
@@ -491,10 +489,11 @@ class EntityExtension:
                 header.user_id = user_id
                 return packet
             
-            
             # Make the player sit down on an imaginary bench, this moves him
             packet = create_teleport_packet(pos, chunk.pos, entity.entity_id)
-            update_packet.static_entities.append(packet)
+            
+            # Send only to specific client
+            self.__con_script.static_entities.append(packet)
 
             # Make him stand up again
             def send_reset_packet():
@@ -502,8 +501,8 @@ class EntityExtension:
                     chunk.static_entities[id].update()
                 else:
                     packet = create_teleport_packet(pos, chunk.pos, 0)
-                    update_packet.static_entities.append(packet)
-                tp_ids[chunk] = tp_ids[chunk] - 1
+                    # Send only to specific client
+                    self.__con_script.static_entities.append(packet)
 
             cubolt_script = self.__server.scripts.cubolt
             cubolt_script.loop.call_later(0.1, send_reset_packet)

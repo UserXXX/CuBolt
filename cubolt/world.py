@@ -40,7 +40,9 @@ from cuwo.vector import Vector2
 from cuwo.vector import Vector3
 
 try:
-    from cuwo.tgen import BlockType
+    from cuwo.tgen import EMPTY_TYPE
+    from cuwo.tgen import WATER_TYPE
+    from cuwo.tgen import MOUNTAIN_TYPE
     block_types_available = True
 except ImportError:
     block_types_available = False
@@ -158,9 +160,8 @@ class CuBoltChunk:
         """
         if self.data is None: # Need to cache calls and do them later
             self.block_cache.append((position, block_tuple))
-        else:
-            if block_types_available:
-                self.data.set_block(position, block_tuple)
+        elif block_types_available:
+            self.data.set_block(position, block_tuple)
 
     def _append_deltas(self, deltas):
         """Appends the deltas for this chunk. Access to data is safe
@@ -207,7 +208,7 @@ class CuBoltTGenChunk:
                 self.get_solid(x, y, z - 1)) 
 
     def get_dict(self): 
-        blocks = {} 
+        blocks = {}
  
         for i in range(256*256): 
             x = i % 256 
@@ -229,6 +230,7 @@ class CuBoltTGenChunk:
         return data.height
 
     def __getitem__(self, index):
+        index = int(index)
         if index in self.__proxies:
             return self.__proxies[index]
         else:
@@ -301,8 +303,8 @@ class CuBoltXYProxy:
         self.__y = y + chunk.y * 256
         self.__chunk_x = chunk.x
         self.__chunk_y = chunk.y
-        self.__blocks = {}
-        self.height = proxy.a + len(proxy)
+        self.__blocks = {} # index -> (block_delta_update)
+        self.height = proxy.a + len(proxy) # first not allocated block
 
     @property
     def a(self):
@@ -318,7 +320,7 @@ class CuBoltXYProxy:
     def __getitem__(self, index):
         abs_index = index + self.__proxy.a
         if abs_index in self.__blocks:
-            return self.__blocks[abs_index][0]
+            return self.__get_block_color(self.__blocks[abs_index])
         elif index > 0 and index < len(self.__proxy):
             return self.__proxy[index]
         elif index < 0:
@@ -329,7 +331,7 @@ class CuBoltXYProxy:
     def get_type(self, index):
         abs_index = index + self.__proxy.a
         if abs_index in self.__blocks:
-            return self.__blocks[abs_index][1]
+            return self.__get_block_type(self.__blocks[abs_index])
         elif index > 0 and index < len(self.__proxy):
             return self.__proxy.get_type(index)
         elif index < 0:
@@ -349,9 +351,28 @@ class CuBoltXYProxy:
         
         """
         if index in self.__blocks:
-            return self.__blocks[index]
+            bdu = self.__blocks[index]
+            c = self.__get_block_color(bdu)
+            t = self.__get_block_type(bdu)
+            return (c,t)
         else:
-            rel_index = index - self.__proxy.a
+            #eff_b = min(0, self.__proxy.b)
+            #if rel_index < eff_b:
+            #    return ((0,0,0),MOUNTAIN_TYPE)
+            #elif rel_index > eff_b and rel_index <= 0:
+            #    rel_index = len(self.__proxy) - 1
+            #elif rel_index >= len(self.__proxy):
+            #    return ((0,0,0),EMPTY_TYPE)
+            a = self.__proxy.a
+            l = len(self.__proxy)
+            rl = a + l
+            if index < a:
+                index = a
+            elif index >= rl and index <= 0:
+                return ((0,0,0),WATER_TYPE)
+            elif index >= rl:
+                return ((0,0,0),EMPTY_TYPE)
+            rel_index = index - a
             n_color = self.__proxy[rel_index]
             n_type = self.__proxy.get_type(rel_index)
             return (n_color,n_type)
@@ -379,7 +400,7 @@ class CuBoltXYProxy:
                     while self.get_block(self.height)[1] == EMPTY_TYPE:
                         self.height = self.height - 1
         else:
-            self.__blocks[index] = block_tuple
+            self.__blocks[index] = self.__create_bdu(block_tuple, index)
             changed = True
             if index >= self.height:
                 self.height = index + 1
@@ -392,8 +413,29 @@ class CuBoltXYProxy:
             for connection_script in cubolt.children:
                 if connection_script.is_near(x, y):
                     c = w.get_chunk(Vector2(x, y))
-                    connection_script.chunks.append(c)
-            
+                    chunks = connection_script.chunks
+                    if c not in chunks:
+                        chunks.append(c)
+        
+    def __get_block_color(self, bdu):
+        return (bdu.color_red, bdu.color_green, bdu.color_blue)
+
+    def __get_block_type(self, bdu):
+        return bdu.block_type
+
+    def __create_bdu(self, block_tuple, z):
+        bdu = BlockDeltaUpdate()
+        # All coordinates are specified absolute in block
+        # coordinates
+        bdu.block_pos = Vector3(self.__x, self.__y, z)
+        block = block_tuple
+        bdu.color_red = block[0][0]
+        bdu.color_green = block[0][1]
+        bdu.color_blue = block[0][2]
+        bdu.block_type = block[1]
+        bdu.something8 = 0
+        return bdu
+                        
     def _append_deltas(self, deltas):
         """Appends the deltas for this chunk.
         
@@ -401,15 +443,4 @@ class CuBoltXYProxy:
         deltas -- List to append to.
 
         """
-        for z in self.__blocks.keys():
-            bdu = BlockDeltaUpdate()
-            # All coordinates are specified absolute in block
-            # coordinates
-            bdu.block_pos = Vector3(self.__x, self.__y, z)
-            block = self.__blocks[z]
-            bdu.color_red = block[0][0]
-            bdu.color_green = block[0][1]
-            bdu.color_blue = block[0][2]
-            bdu.block_type = block[1]
-            bdu.something8 = 0
-            deltas.append(bdu)
+        deltas.extend(self.__blocks.values())

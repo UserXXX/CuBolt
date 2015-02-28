@@ -38,9 +38,10 @@ from cuwo.world import World
 from cuwo.vector import Vector3
 
 try:
-    from cuwo.tgen import BlockType
+    from cuwo.tgen import MOUNTAIN_TYPE
     block_types_available = True
 except ImportError:
+    MOUNTAIN_TYPE = 6
     block_types_available = False
     
 
@@ -89,23 +90,125 @@ class Model:
         """
         self.server = server
 
-    def place_in_world(self, lower_x, lower_y, lower_z, type):
+    def place_in_world_v(self, lower_pos, type=MOUNTAIN_TYPE,
+                         remove_blocks=False):
+        """Places the model in the world.
+
+        Keyword arguments:
+        lower_pos -- Position where to start placing blocks.
+        type -- Block type to use for placed blocks.
+        remove_blocks -- True to remove all blocks within the models
+            bounds that are not part of it.
+
+        """
+        x = int(lower_pos.x)
+        y = int(lower_pos.y)
+        z = int(lower_pos.z)
+        self.place_in_world(x, y, z, type, remove_blocks)
+
+    def place_in_world(self, lower_x, lower_y, lower_z,
+                       type=MOUNTAIN_TYPE, remove_blocks=False):
         """Places the model in the world.
 
         Keyword arguments:
         lower_x -- X coordinate where to start placing the blocks.
         lower_y -- Y coordinate where to start placing the blocks.
         lower_z -- Z coordinate where to start placing the blocks.
+        type -- Block type to use for placed blocks.
+        remove_blocks -- True to remove all blocks within the models
+            bounds that are not part of it.
 
         """
         w = self.server.world
-        for pos in self.data.keys():
-            x = pos[0] + lower_x
-            y = pos[1] + lower_y
-            z = pos[2] + lower_z
-            color = self.data[pos]
-            w.set_block(Vector3(x, y, z), (color,type))
+        if remove_blocks:
+            size = self.size
+            size_x = int(size.x)
+            size_y = int(size.y)
+            size_z = int(size.z)
+            for x in range(0, size_x):
+                for y in range(0, size_y):
+                    for z in range(0, size_z):
+                        pos = (x,y,z)
+                        pos_v = Vector3(x, y, z)
+                        if pos in self.data:
+                            c = self.data[pos]
+                            w.set_block(pos_v, (c,type))
+                        else:
+                            w.set_block(pos_v, ((0,0,0),0))
+        else:
+            for pos in self.data.keys():
+                x = pos[0] + lower_x
+                y = pos[1] + lower_y
+                z = pos[2] + lower_z
+                color = self.data[pos]
+                w.set_block(Vector3(x, y, z), (color,type))
  
+    def rotate_left_z(self):
+        """Rotates the model for 90 degrees to the left around the
+        z-axis.
+        
+        """
+        new_data = {}
+        max_index_y = int(self.size.y) - 1
+        for pos in self.data.keys():
+            new_pos = (max_index_y - pos[1], pos[0], pos[2])
+            new_data[new_pos]  = self.data[pos]
+        self.data = new_data
+        tmp = self.size.x
+        self.size.x = self.size.y
+        self.size.y = tmp
+
+    def rotate_right_z(self):
+        """Rotates the model for 90 degrees to the right around the
+        z-axis.
+        
+        """
+        new_data = {}
+        max_index_x = int(self.size.x) - 1
+        for pos in self.data.keys():
+            new_pos = (pos[1], max_index_x - pos[0], pos[2])
+            new_data[new_pos]  = self.data[pos]
+        self.data = new_data
+        tmp = self.size.x
+        self.size.x = self.size.y
+        self.size.y = tmp
+
+    def rotate_180_z(self):
+        """Rotates the model for 180 degrees to the right around the
+        z-axis.
+        
+        """
+        new_data = {}
+        max_index_x = int(self.size.x) - 1
+        max_index_y = int(self.size.y) - 1
+        for pos in self.data.keys():
+            x = max_index_x - pos[0]
+            y = max_index_y - pos[1]
+            new_pos = (x, y, pos[2])
+            new_data[new_pos]  = self.data[pos]
+        self.data = new_data
+
+    def mirror_x(self):
+        """Mirrors the model at the x-axis."""
+        new_data = {}
+        max_index_y = int(self.size.y) - 1
+        for pos in self.data.keys():
+            new_pos = (pos[0], max_index_y - pos[1], pos[2])
+            new_data[new_pos]  = self.data[pos]
+        self.data = new_data
+
+    def mirror_y(self):
+        """Mirrors the model at the y-axis."""
+        new_data = {}
+        max_index_x = self.size.x - 1
+        for pos in self.data.keys():
+            new_pos = (max_index_x - pos[0], pos[1], pos[2])
+            new_data[new_pos]  = self.data[pos]
+        self.data = new_data
+        tmp = self.size.x
+        self.size.x = self.size.y
+        self.size.y = tmp
+
  
 class CubeModel(Model):
     """Model class for Cube Worlds default Models (*.cub files)."""
@@ -129,15 +232,17 @@ class CubeModel(Model):
             model_data = bytearray(row[1])
             model_data = self.__descramble(model_data)
             model = CubModel(ByteArrayReader(model_data))
-            self.size_x = model.x_size
-            self.size_y = model.y_size
-            self.size_z = model.z_size
+            x = model.x_size
+            y = model.y_size
+            z = model.z_size
+            self.size = Vector3(x, y, z)
             self.data = model.blocks
         else:
             model = CubModel(ByteReader(open(filename, 'rb').read()))
-            self.size_x = model.x_size
-            self.size_y = model.y_size
-            self.size_z = model.z_size
+            x = model.x_size
+            y = model.y_size
+            z = model.z_size
+            self.size = Vector3(x, y, z)
             self.data = model.blocks
             
     def __descramble(self, model_data):
