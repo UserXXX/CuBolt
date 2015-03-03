@@ -33,12 +33,14 @@ import asyncio
 from cuwo.loop import LoopingCall
 from cuwo.packet import CurrentTime
 from cuwo.packet import UpdateFinished
+from cuwo.tgen import EMPTY_TYPE
 from cuwo.vector import Vector2
 from cuwo.vector import Vector3
 
 from .entity import EntityExtension
 from .model import CubeModel
 from .particle import ParticleEffect
+from .world import Block
 from .world import CuBoltChunk
 
 
@@ -154,8 +156,7 @@ class Injector(object):
         position -- Absolute position in block coordinates.
 
         Returns:
-        Tuple of form (color tuple, block type) or None if the chunk
-        has not been generated yet.
+        The block.
 
         """
         chunk_x = int(position.x) // 256
@@ -166,12 +167,12 @@ class Injector(object):
         y = position.y - chunk_y * 256
         return chunk.get_block(Vector3(x, y, position.z))
 
-    def set_block(self, position, block_tuple):
+    def set_block(self, position, block):
         """Sets a block.
         
         Keyword arguments:
         position -- Absolute position in block coordinates.
-        block_tuple -- Tuple of form (color tuple, block type).
+        block -- Block to set.
         
         """
         chunk_x = int(position.x) // 256
@@ -180,7 +181,7 @@ class Injector(object):
         chunk = w.get_chunk(Vector2(chunk_x, chunk_y))
         x = position.x - chunk_x * 256
         y = position.y - chunk_y * 256
-        chunk.set_block(Vector3(x, y, position.z), block_tuple)
+        chunk.set_block(Vector3(x, y, position.z), block)
         
     def inject_factory(self):
         """Injects CuBolts factory into the server."""
@@ -214,3 +215,6 @@ class CuBoltFactory:
         
         """
         return CubeModel(self.server, filename, from_database)
+
+    def create_block(self, color=(0,0,0), type=EMPTY_TYPE, breakable=False):
+        return Block(color, type, breakable)

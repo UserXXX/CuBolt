@@ -47,6 +47,7 @@ try:
 except ImportError:
     block_types_available = False
 
+from .exceptions import IndexBelowWorldException
 
 class CuBoltChunk:
     data = None
@@ -100,8 +101,8 @@ class CuBoltChunk:
         # inserted
         # do the cached calls that have been made before the chunk
         # was loaded
-        for (pos, bt) in self.block_cache:
-            self.set_block(pos, bt)
+        for (pos, block) in self.block_cache:
+            self.set_block(pos, block)
         self.block_cache = None
 
         self.world.server.scripts.call('on_chunk_load', chunk=self)
@@ -139,8 +140,7 @@ class CuBoltChunk:
         position -- Position vector. X, Y, Z coordinate from 0-255.
 
         Returns:
-        Tuple of form (color tuple, block type) or None if the chunk
-        has not yet been generated.
+        The block.
 
         """
         if self.data is None:
@@ -150,18 +150,18 @@ class CuBoltChunk:
         else:
             return None
 
-    def set_block(self, position, block_tuple):
+    def set_block(self, position, block):
         """Sets a block in this chunk.
         
         Keyword arguments:
         position -- Position vector. X, Y, Z coordinate form 0-255.
-        block_tuple -- Tuple of form (color tuple, block type).
+        block -- The block to set.
 
         """
         if self.data is None: # Need to cache calls and do them later
-            self.block_cache.append((position, block_tuple))
+            self.block_cache.append((position, block))
         elif block_types_available:
-            self.data.set_block(position, block_tuple)
+            self.data.set_block(position, block)
 
     def _append_deltas(self, deltas):
         """Appends the deltas for this chunk. Access to data is safe
@@ -259,7 +259,7 @@ class CuBoltTGenChunk:
         position -- Position vector. X, Y, Z coordinate from 0-255.
 
         Returns:
-        Tuple of form (color tuple, block type).
+        The block.
 
         """
         p = position
@@ -269,12 +269,12 @@ class CuBoltTGenChunk:
         proxy = self.get_column(x, y)
         return proxy.get_block(z)
 
-    def set_block(self, position, block_tuple):
+    def set_block(self, position, block):
         """Sets a block in this chunk.
         
         Keyword arguments:
         position -- Position vector. X, Y, Z coordinate form 0-255.
-        block_tuple -- Tuple of form (color tuple, block type).
+        block -- Block to set.
 
         """
         p = position
@@ -282,7 +282,7 @@ class CuBoltTGenChunk:
         y = int(p.y)
         z = int(p.z)
         proxy = self.get_column(x, y)
-        proxy.set_block(z, block_tuple)
+        proxy.set_block(z, block)
 
     def _append_deltas(self, deltas):
         """Appends the deltas for this chunk.
@@ -306,136 +306,210 @@ class CuBoltXYProxy:
         self.__blocks = {} # index -> (block_delta_update)
         self.height = proxy.a + len(proxy) # first not allocated block
 
+    # replaced
     @property
     def a(self):
         return self.__proxy.a
 
+    # replaced
     @property
     def b(self):
         return self.__proxy.b
 
+    # replaced
     def __len__(self):
         return len(self.__proxy)
 
+    # replaced
     def __getitem__(self, index):
-        abs_index = index + self.__proxy.a
-        if abs_index in self.__blocks:
-            return self.__get_block_color(self.__blocks[abs_index])
-        elif index > 0 and index < len(self.__proxy):
-            return self.__proxy[index]
-        elif index < 0:
-            return self[0]
-        else:
-            return (0,0,0) # Empty block
+        return self.__proxy[index]
 
+    # replaced
     def get_type(self, index):
-        abs_index = index + self.__proxy.a
-        if abs_index in self.__blocks:
-            return self.__get_block_type(self.__blocks[abs_index])
-        elif index > 0 and index < len(self.__proxy):
-            return self.__proxy.get_type(index)
-        elif index < 0:
-            return MOUNTAIN_TYPE
-        else:
-            return EMPTY_TYPE
+        return self.__proxy.get_type(index)
 
-    def get_block(self, index):
+    # replaced
+    def get_breakable(self, index):
+        return self.__proxy.get_breakable(index)
+
+    def get_block(self, z):
         """Absolute block access.
         
         Keyword arguments:
-        index -- Absolute index to access at. Index recalculation is
-        done internally.
+        z -- Absolute z coordinate to access at.
 
         Returns:
-        A tuple of (block color as 3 tuple, block type).
+        A block.
         
         """
-        if index in self.__blocks:
-            bdu = self.__blocks[index]
-            c = self.__get_block_color(bdu)
-            t = self.__get_block_type(bdu)
-            return (c,t)
+        if z in self.__blocks:
+            return self.__create_block_from_bdu(self.__blocks[z])
         else:
-            #eff_b = min(0, self.__proxy.b)
-            #if rel_index < eff_b:
-            #    return ((0,0,0),MOUNTAIN_TYPE)
-            #elif rel_index > eff_b and rel_index <= 0:
-            #    rel_index = len(self.__proxy) - 1
-            #elif rel_index >= len(self.__proxy):
-            #    return ((0,0,0),EMPTY_TYPE)
-            a = self.__proxy.a
-            l = len(self.__proxy)
-            rl = a + l
-            if index < a:
-                index = a
-            elif index >= rl and index <= 0:
-                return ((0,0,0),WATER_TYPE)
-            elif index >= rl:
-                return ((0,0,0),EMPTY_TYPE)
-            rel_index = index - a
-            n_color = self.__proxy[rel_index]
-            n_type = self.__proxy.get_type(rel_index)
-            return (n_color,n_type)
+            return self.__create_block_from_native(z)
 
-    def set_block(self, index, block_tuple):
+    def set_block(self, z, block):
         """Absolute block set.
         
         Keyword arguments:
-        index -- Absolute index to write to.
-        block_tuple -- Tuple of form (block color as 3 tuple,
-            block type).
+        z -- Absolute z coordinate to write to.
+        block -- Block to set.
 
         """
-        rel_index = index - self.__proxy.a
-        n_color = self.__proxy[rel_index]
-        n_type = self.__proxy.get_type(rel_index)
-        changed = False
-        if block_tuple[0] == n_color and block_tuple[1] == n_type:
-            if index in self.__blocks:
-                del self.__blocks[index]
-                changed = True
-                if index == self.height:
-                    # Search the first non-air block
-                    self.height = self.height - 1
-                    while self.get_block(self.height)[1] == EMPTY_TYPE:
-                        self.height = self.height - 1
-        else:
-            self.__blocks[index] = self.__create_bdu(block_tuple, index)
-            changed = True
-            if index >= self.height:
-                self.height = index + 1
+        if z < self.__proxy.a:
+            raise IndexBelowWorldException("Blocks below the a index of a chunk can't be set")
+
+        self.__blocks[z] = self.__create_bdu(block, z)
+        if z >= self.height and block.type != EMPTY_TYPE:
+            self.height = z + 1
+        if z == self.height and block.type == EMPTY_TYPE:
+            self.height = self.height - 1
+            while self.get_block(self.height).type == EMPTY_TYPE:
+                self.height = self.height - 1
+            self.height = self.height + 1
+        self.__invalidate(z)
         
-        if changed:
-            cubolt = self.__server.scripts.cubolt
-            x = self.__chunk_x
-            y = self.__chunk_y
-            w = self.__server.world
-            for connection_script in cubolt.children:
-                if connection_script.is_near(x, y):
-                    c = w.get_chunk(Vector2(x, y))
-                    chunks = connection_script.chunks
-                    if c not in chunks:
-                        chunks.append(c)
+    def __get_color(self, bdu):
+        """Gets the color from a block delta update.
         
-    def __get_block_color(self, bdu):
+        Keyword arguments:
+        bdu -- Block delta update.
+
+        """
         return (bdu.color_red, bdu.color_green, bdu.color_blue)
 
-    def __get_block_type(self, bdu):
-        return bdu.block_type
+    def __get_type(self, bdu):
+        """Gets the type from a block delta update.
+        
+        Keyword arguments:
+        bdu -- Block delta update.
 
-    def __create_bdu(self, block_tuple, z):
+        """
+        return bdu.block_type & 0b11111
+
+    def __get_breakable(self, bdu):
+        """Gets whether a block is breakable from a block delta update.
+        
+        Keyword arguments:
+        bdu -- Block delta update.
+
+        """
+        return (bdu.block_type & 0b00100000) != 0
+
+    def __create_block_from_bdu(self, bdu):
+        """Creates a block from a block delta update.
+        
+
+        Keyword arguments:
+        bdu --  Block delta update.
+
+        """
+        color = self.__get_color(bdu)
+        type = self.__get_type(bdu)
+        breakable = self.__get_breakable(bdu)
+        return Block(color, type, breakable)
+
+    def __get_native_color(self, z):
+        """Gets the native color of a block.
+        
+        Keyword arguments:
+        z -- Absolute z coordinate.
+
+        """
+        a = self.a
+        b = self.b
+        l = len(self.__proxy)
+        if z < b or z >= a + l:
+            return (0,0,0)
+        elif z >= b and z < a:
+            return (128, 128, 128)
+
+        rel_z = z - a
+        return self.__proxy[rel_z]
+
+    def __get_native_type(self, z):
+        """Gets the native type of a block.
+        
+        Keyword arguments:
+        z -- Absolute z coordinate.
+
+        """
+        a = self.a
+        b = self.b
+        l = len(self.__proxy)
+        if z < a:
+            return MOUNTAIN_TYPE
+        elif z >= a + l:
+            if z <= 0:
+                return WATER_TYPE
+            else:
+                return EMPTY_TYPE
+
+        rel_z = z - a
+        native_type = self.__proxy.get_type(rel_z)
+        if z <= 0 and native_type == EMPTY_TYPE:
+            return WATER_TYPE
+        return native_type
+
+    def __get_native_breakable(self, z):
+        """Gets whether a block is breakable by native.
+        
+        Keyword arguments:
+        z -- Absolute z coordinate.
+
+        """
+        a = self.a
+        b = self.b
+        l = len(self.__proxy)
+        if z < a or z >= a + l:
+            return False
+        
+        rel_z = z - a
+        return self.__proxy.get_breakable(rel_z)
+
+    def __create_block_from_native(self, z):
+        """Creates a block from native values.
+        
+        Keyword arguments:
+        z -- Absolute z coordinate.
+
+        """
+        color = self.__get_native_color(z)
+        type = self.__get_native_type(z)
+        breakable = self.__get_native_breakable(z)
+        return Block(color, type, breakable)
+
+    def __create_bdu(self, block, z):
+        """Creates a block delta update.
+        
+        Keyword arguments:
+        block -- The block to create it from.
+        z -- Absolute z coordinate.
+
+        """
         bdu = BlockDeltaUpdate()
         # All coordinates are specified absolute in block
         # coordinates
         bdu.block_pos = Vector3(self.__x, self.__y, z)
-        block = block_tuple
-        bdu.color_red = block[0][0]
-        bdu.color_green = block[0][1]
-        bdu.color_blue = block[0][2]
-        bdu.block_type = block[1]
+        bdu.color_red, bdu.color_green, bdu.color_blue = block.color
+        bdu.block_type = block.type | (block.breakable << 6)
         bdu.something8 = 0
         return bdu
-                        
+        
+    def __invalidate(self, z):
+        """Invalidates this block. This means that it will be
+        retransferred as soon as possible.
+        
+        Keyword arguments:
+        z -- Absolute z index of block to invalidate.
+
+        """
+        cubolt = self.__server.scripts.cubolt
+        for con_script in cubolt.children:
+            if con_script.is_near(self.__chunk_x, self.__chunk_y):
+                bdu = self.__blocks[z]
+                if bdu not in con_script.block_deltas:
+                    con_script.block_deltas.append(self.__blocks[z])
+    
     def _append_deltas(self, deltas):
         """Appends the deltas for this chunk.
         
@@ -444,3 +518,9 @@ class CuBoltXYProxy:
 
         """
         deltas.extend(self.__blocks.values())
+
+class Block:
+    def __init__(self, color=(0,0,0), type=EMPTY_TYPE, breakable=False):
+        self.color = color
+        self.type = type
+        self.breakable = breakable

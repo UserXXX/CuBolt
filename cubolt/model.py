@@ -43,6 +43,8 @@ try:
 except ImportError:
     MOUNTAIN_TYPE = 6
     block_types_available = False
+
+from .world import Block
     
 
 MODEL_DATABASE = os.path.join('data', 'data1.db')
@@ -90,7 +92,7 @@ class Model:
         """
         self.server = server
 
-    def place_in_world_v(self, lower_pos, type=MOUNTAIN_TYPE,
+    def place_in_world_v(self, lower_pos, type=MOUNTAIN_TYPE, breakable=False,
                          remove_blocks=False):
         """Places the model in the world.
 
@@ -104,10 +106,11 @@ class Model:
         x = int(lower_pos.x)
         y = int(lower_pos.y)
         z = int(lower_pos.z)
-        self.place_in_world(x, y, z, type, remove_blocks)
+        self.place_in_world(x, y, z, type, breakable, remove_blocks)
 
     def place_in_world(self, lower_x, lower_y, lower_z,
-                       type=MOUNTAIN_TYPE, remove_blocks=False):
+                       type=MOUNTAIN_TYPE, breakable=False,
+                       remove_blocks=False):
         """Places the model in the world.
 
         Keyword arguments:
@@ -132,16 +135,16 @@ class Model:
                         pos_v = Vector3(x, y, z)
                         if pos in self.data:
                             c = self.data[pos]
-                            w.set_block(pos_v, (c,type))
+                            w.set_block(pos_v, Block(c,type))
                         else:
-                            w.set_block(pos_v, ((0,0,0),0))
+                            w.set_block(pos_v, Block())
         else:
             for pos in self.data.keys():
                 x = pos[0] + lower_x
                 y = pos[1] + lower_y
                 z = pos[2] + lower_z
                 color = self.data[pos]
-                w.set_block(Vector3(x, y, z), (color,type))
+                w.set_block(Vector3(x, y, z), Block(color,type))
  
     def rotate_left_z(self):
         """Rotates the model for 90 degrees to the left around the
